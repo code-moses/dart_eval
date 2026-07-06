@@ -361,6 +361,29 @@ void main() {
       }, prints('null\n1\n'));
     });
 
+    test('Method invocation on null-coalesced dynamic value', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              dynamic rows = [
+                {'faixa_aging': null, 'valor_em_aberto': 10.0},
+                {'faixa_aging': '31-60', 'valor_em_aberto': 5.0},
+              ];
+              for (final row in rows) {
+                final faixa = (row['faixa_aging'] ?? 'N/A').toString();
+                print(faixa);
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('N/A\n31-60\n'));
+    });
+
     test('Named params and ternary', () {
       final runtime = Compiler().compileWriteAndLoad({
         'example': {
