@@ -178,5 +178,43 @@ void main() {
         $int(100100),
       );
     });
+
+    test('Nested loop with break does not corrupt register state (#298)', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            String main() {
+              dynamic rows = [
+                {'numero_venda': 1, 'valor_em_aberto': 10.0},
+                {'numero_venda': 2, 'valor_em_aberto': 5.0},
+              ];
+              dynamic taxasRows = [
+                {'numero_venda': 1, 'taxa': 'A'},
+                {'numero_venda': 2, 'taxa': 'B'},
+              ];
+              final out = StringBuffer();
+              for (final row in rows) {
+                dynamic taxa;
+                for (final t in taxasRows) {
+                  if (row['numero_venda'] == t['numero_venda']) {
+                    taxa = t;
+                    break;
+                  }
+                }
+                final abertoRaw = row['valor_em_aberto'];
+                if (abertoRaw is num && taxa != null) {
+                  out.write('\${row['numero_venda']}:\${taxa['taxa']};');
+                }
+              }
+              return out.toString();
+            }
+          ''',
+        },
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        $String('1:A;2:B;'),
+      );
+    });
   });
 }

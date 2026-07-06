@@ -33,11 +33,13 @@ StatementInfo macroBranch(
   ctx.inferTypes();
   ctx.beginAllocScope();
   final label = CompilerLabel(LabelType.branch, -1, (ctx) {
+    // Pop both the then-branch scope (opened just above) and the condition
+    // scope (opened at the start of macroBranch). On the normal fall-through
+    // path these are popped separately (see below), but when control unwinds
+    // through this label via break/continue, both must be cleaned up here or
+    // the runtime stack is left misaligned. See issue #298.
     ctx.endAllocScopeQuiet();
-    if (!resolveStateToThen) {
-      //_ctx.resolveBranchStateDiscontinuity(_initialState);
-    }
-    //_ctx.endAllocScopeQuiet();
+    ctx.endAllocScopeQuiet();
     return -1;
   });
   ctx.labels.add(label);
