@@ -190,7 +190,17 @@ class CheckEq implements EvcOp {
     final v1 = runtime.frame[_value1];
     final v2 = runtime.frame[_value2];
 
-    var vx = v1;
+    // Per Dart equality semantics, == is never invoked when either operand
+    // is null: the result is simply whether both are null. This also treats
+    // a raw null frame value and the boxed $null as equal.
+    final v1null = v1 == null || v1 is $null;
+    final v2null = v2 == null || v2 is $null;
+    if (v1null || v2null) {
+      runtime.returnValue = v1null && v2null;
+      return;
+    }
+
+    Object? vx = v1;
 
     while (true) {
       if (vx is $InstanceImpl) {
@@ -211,9 +221,7 @@ class CheckEq implements EvcOp {
       if (vx is $Instance) {
         final method = vx.$getProperty(runtime, '==') as EvalFunction;
 
-        runtime.returnValue = method.call(runtime, vx, [
-          v2 == null ? null : v2 as $Value,
-        ])!.$value;
+        runtime.returnValue = method.call(runtime, vx, [v2 as $Value])!.$value;
         runtime.args = [];
 
         return;

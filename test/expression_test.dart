@@ -476,6 +476,31 @@ void main() {
       }, prints('mail@example.com\n'));
     });
 
+    test('Equality with null operands never invokes operator ==', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            class A {
+              @override
+              bool operator ==(Object? other) => true;
+            }
+            void main() {
+              A? a = A();
+              print(a == null);
+              print(a != null);
+              A? b;
+              print(b == null);
+              print(a == a);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('false\ntrue\ntrue\ntrue\n'));
+    });
+
     test('Unary minus on num and dynamic operands', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {
