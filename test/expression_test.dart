@@ -476,6 +476,28 @@ void main() {
       }, prints('mail@example.com\n'));
     });
 
+    test('Null-aware access on nullable locals', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              String? s;
+              print(s?.length);
+              print(s?.contains("a"));
+              s = "abc";
+              print(s?.length);
+              print(s?.isEmpty);
+              print(s?.toUpperCase());
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('null\nnull\n3\nfalse\nABC\n'));
+    });
+
     test('"as" cast on unboxed value', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

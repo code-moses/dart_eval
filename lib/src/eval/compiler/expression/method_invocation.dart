@@ -46,14 +46,17 @@ Variable compileMethodInvocation(
           L.concreteTypes[0] == CoreTypes.nullType.ref(ctx)) {
         return out;
       }
+      // Box the target so a runtime null is represented as $null for the
+      // null check.
+      final boxedL = L.boxIfNeeded(ctx);
       macroBranch(
         ctx,
         null,
         condition: (ctx) {
-          return checkNotEqual(ctx, L!, out);
+          return checkNotEqual(ctx, boxedL, out);
         },
         thenBranch: (ctx, rt) {
-          final V = _invokeWithTarget(ctx, L!, e);
+          final V = _invokeWithTarget(ctx, boxedL, e);
           out = out.copyWith(type: V.type.copyWith(nullable: true));
           ctx.pushOp(
             CopyValue.make(out.scopeFrameOffset, V.scopeFrameOffset),
