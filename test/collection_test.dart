@@ -201,6 +201,23 @@ void main() {
 
       expect(result, equals([1, 2, 3, 4].map((e) => $int(e)).toList()));
     });
+
+    test('Large list literal does not overflow the runtime frame', () {
+      final items = List.generate(600, (i) => '$i').join(',');
+      final runtime = compiler.compileWriteAndLoad({
+        'test': {
+          'main.dart':
+              '''
+            int main() {
+              final l = [$items];
+              return l.length;
+            }
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:test/main.dart', 'main'), 600);
+    });
   });
 
   group('Map tests', () {
@@ -557,5 +574,23 @@ void main() {
         runtime.executeLib('package:eval_test/main.dart', 'main');
       }, prints('[1, 2, 3]\n1,2,3\n[1, 2, 3]\n'));
     });
+
+    test('Large map literal does not overflow the runtime frame', () {
+      final entries = List.generate(600, (i) => "'k$i': 'v$i'").join(',');
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart':
+              '''
+            int main() {
+              final m = {$entries};
+              return m.length;
+            }
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:eval_test/main.dart', 'main'), 600);
+    });
+
   });
 }

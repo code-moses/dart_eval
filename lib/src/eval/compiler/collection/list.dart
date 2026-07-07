@@ -64,7 +64,11 @@ Variable compileListLiteral(
   ctx.labels.add(SimpleCompilerLabel());
   final resultTypes = <TypeRef>[];
   for (final e in elements) {
+    // Free each element's temporaries immediately, so large list literals
+    // don't exhaust the fixed-size runtime frame
+    ctx.beginAllocScope();
     resultTypes.addAll(compileListElement(e, list, ctx, _boxListElements));
+    ctx.endAllocScope();
   }
   ctx.labels.removeLast();
   ctx.endAllocScope();

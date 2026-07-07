@@ -77,7 +77,13 @@ mixin ScopeContext on Object implements AbstractScopeContext {
     if (pops == 0) {
       return;
     }
-    pushOp(Pop.make(pops), Pop.LEN);
+    // Pop encodes its amount as a uint8, so chunk larger pop counts
+    var remaining = pops;
+    while (remaining > 255) {
+      pushOp(Pop.make(255), Pop.LEN);
+      remaining -= 255;
+    }
+    pushOp(Pop.make(remaining), Pop.LEN);
   }
 
   void resetStack({int position = 0}) {

@@ -36,6 +36,14 @@ Variable compileSetOrMapLiteral(SetOrMapLiteral l, CompilerContext ctx) {
   final keyResultTypes = <TypeRef>[];
   final valueResultTypes = <TypeRef>[];
   for (final e in elements) {
+    // Once the collection itself is allocated, free each element's
+    // temporaries immediately so large literals don't exhaust the fixed-size
+    // runtime frame. The first element must stay in the outer scope as it
+    // allocates the collection.
+    final scoped = collection != null;
+    if (scoped) {
+      ctx.beginAllocScope();
+    }
     final result = compileSetOrMapElement(
       e,
       collection,
@@ -47,6 +55,9 @@ Variable compileSetOrMapLiteral(SetOrMapLiteral l, CompilerContext ctx) {
     collection = result.first;
     keyResultTypes.addAll(result.second.map((e) => e.first));
     valueResultTypes.addAll(result.second.map((e) => e.second));
+    if (scoped) {
+      ctx.endAllocScope();
+    }
   }
 
   if (specifiedKeyType == null && keyResultTypes.isNotEmpty) {
