@@ -90,5 +90,24 @@ void main() {
         $int(2),
       ]);
     }, skip: true);
+
+    test('Operator * on String', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'operator_test': {
+          'main.dart': '''
+            String main() {
+              final s = 'ab';
+              dynamic d = 'c';
+              return s * 2 + d * 3 + 'x' * 0;
+            }
+          ''',
+        },
+      });
+
+      expect(
+        runtime.executeLib('package:operator_test/main.dart', 'main'),
+        $String('ababccc'),
+      );
+    });
   });
 }

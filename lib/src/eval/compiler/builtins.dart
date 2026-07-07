@@ -263,6 +263,9 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       '+': KnownMethod(AlwaysReturnType(CoreTypes.string.ref(ctx), false), [
         KnownMethodArg('other', CoreTypes.string.ref(ctx), false),
       ], {}),
+      '*': KnownMethod(AlwaysReturnType(CoreTypes.string.ref(ctx), false), [
+        KnownMethodArg('times', CoreTypes.int.ref(ctx), false),
+      ], {}),
       '==': KnownMethod(AlwaysReturnType(CoreTypes.bool.ref(ctx), false), [
         KnownMethodArg('other', CoreTypes.string.ref(ctx), false),
       ], {}),

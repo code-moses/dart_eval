@@ -333,6 +333,8 @@ class $String implements $Instance {
         return $bool($value.isNotEmpty);
       case '+':
         return __concat;
+      case '*':
+        return __multiply;
       case '[]':
         return __index;
       case 'codeUnitAt':
@@ -400,6 +402,18 @@ class $String implements $Instance {
     target as $String;
     final other = args[0] as $String;
     return $String(target.$value + other.$value);
+  }
+
+  static const $Function __multiply = $Function(_multiply);
+
+  static $Value? _multiply(
+    final Runtime runtime,
+    final $Value? target,
+    final List<$Value?> args,
+  ) {
+    target as $String;
+    final times = args[0]!.$value as int;
+    return $String(target.$value * times);
   }
 
   static const $Function __index = $Function(_index);
