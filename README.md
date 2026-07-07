@@ -37,6 +37,14 @@
 > - Null-coalescing with `toString()` and nested loop runtime flow corruption (pre-session
 >   fixes, [#298](https://github.com/ethanblake4/dart_eval/pull/298)/[#299](https://github.com/ethanblake4/dart_eval/pull/299))
 >
+> **Runtime & memory fixes**
+> - Closures created in loops capture loop variables per iteration instead of observing the
+>   final/reused slot value ([#269](https://github.com/ethanblake4/dart_eval/issues/269))
+> - Large collection literals no longer overflow the fixed-size runtime frame
+>   ([#297](https://github.com/ethanblake4/dart_eval/issues/297))
+> - Index assignment on `dynamic` receivers, e.g. `k['a']['b'] = 'd'` on an untyped map
+>   ([#228](https://github.com/ethanblake4/dart_eval/issues/228))
+>
 > All fixes are covered by regression tests; the full upstream test suite passes.
 
 `dart_eval` is an extensible bytecode compiler and interpreter for the Dart language, 
