@@ -77,6 +77,13 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   /// The diagnostic mode to use when parsing.
   var diagnosticMode = DiagnosticMode.throwIfError;
 
+  /// When enabled, a failed cast to a nullable type evaluates to null
+  /// instead of throwing, similar to the C# 'as' operator: with
+  /// `myValue as MyType?`, a `myValue` that is not a `MyType` yields null.
+  /// Casts to non-nullable types (`myValue as MyType`) still throw on
+  /// mismatch, like standard Dart.
+  var softNullableCasts = false;
+
   // Add a plugin, which will only be run once.
   @override
   void addPlugin(EvalPlugin plugin) {
@@ -186,7 +193,8 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
     _bridgeStaticFunctionIdx = 0;
 
     // Create a compilation context
-    _ctx = CompilerContext(0, version: version);
+    _ctx = CompilerContext(0, version: version)
+      ..softNullableCasts = softNullableCasts;
 
     for (final plugin in _plugins) {
       if (!_appliedPlugins.contains(plugin.identifier)) {

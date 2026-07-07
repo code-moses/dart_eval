@@ -37,6 +37,10 @@ Variable compileAsExpression(AsExpression e, CompilerContext ctx) {
     V = V.boxIfNeeded(ctx);
 
     if (slot.nullable) {
+      if (ctx.softNullableCasts) {
+        return _compileSoftCast(ctx, V, slot, e);
+      }
+
       // A nullable cast accepts null, so only run the type test when the
       // runtime value is non-null.
       macroBranch(
@@ -66,6 +70,52 @@ Variable compileAsExpression(AsExpression e, CompilerContext ctx) {
   // For all other types, just inform the compiler
   // (todo) Mixins may need different behavior
   return V.copyWithUpdate(ctx, type: slot.copyWith(boxed: V.type.boxed));
+}
+
+/// Compiles a soft cast to a nullable type (see [Compiler.softNullableCasts]):
+/// evaluates to the value if it matches the type, and to null otherwise,
+/// similar to the C# 'as' operator. [V] must be boxed.
+Variable _compileSoftCast(
+  CompilerContext ctx,
+  Variable V,
+  TypeRef slot,
+  AsExpression e,
+) {
+  // out = (V != null && V is T) ? V : null
+  final out = BuiltinValue().push(ctx).boxIfNeeded(ctx);
+  macroBranch(
+    ctx,
+    null,
+    condition: (ctx) => compileNotNullCheck(ctx, V),
+    thenBranch: (ctx, rt) {
+      ctx.pushOp(
+        IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, false),
+        IsType.length,
+      );
+      final vIs = Variable.alloc(
+        ctx,
+        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
+      );
+      macroBranch(
+        ctx,
+        null,
+        condition: (ctx) => vIs,
+        thenBranch: (ctx, rt) {
+          ctx.pushOp(
+            CopyValue.make(out.scopeFrameOffset, V.scopeFrameOffset),
+            CopyValue.LEN,
+          );
+          return StatementInfo(-1);
+        },
+        source: e,
+      );
+      return StatementInfo(-1);
+    },
+    source: e,
+  );
+  // Clear the null concreteTypes inherited from the null initializer, or
+  // downstream null-aware operators would short-circuit unconditionally
+  return out.copyWith(type: slot.copyWith(boxed: true), concreteTypes: []);
 }
 
 void _typeTestAndAssert(CompilerContext ctx, Variable V, TypeRef slot) {

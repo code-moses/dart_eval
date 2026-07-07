@@ -623,6 +623,37 @@ void main() {
       }, prints('2\n2\nnull\n'));
     });
 
+    test('Soft nullable casts (softNullableCasts option)', () {
+      final runtime = (Compiler()..softNullableCasts = true)
+          .compileWriteAndLoad({
+            'eval_test': {
+              'main.dart': '''
+            void main() {
+              final m = {"a": null, "b": "text", "c": 42};
+              // wrong type: soft cast yields null instead of throwing
+              print(m["c"] as String?);
+              print((m["c"] as String?) ?? "fallback");
+              // matching type: yields the value
+              print(m["b"] as String?);
+              print((m["b"] as String?)?.length);
+              // null: yields null
+              print(m["a"] as String?);
+              // casts to non-nullable types remain strict
+              try {
+                print(m["c"] as String);
+              } catch (e) {
+                print("strict throw");
+              }
+            }
+          ''',
+            },
+          });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('null\nfallback\ntext\n4\nnull\nstrict throw\n'));
+    });
+
     test('"as" cast on unboxed value', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

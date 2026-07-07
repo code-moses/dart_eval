@@ -177,6 +177,10 @@ class CompilerContext with ScopeContext {
   int position = 0;
   Declaration? currentClass;
 
+  /// See [Compiler.softNullableCasts]: when enabled, a failed cast to a
+  /// nullable type evaluates to null instead of throwing.
+  bool softNullableCasts = false;
+
   String? get currentClassName {
     final currentClass = this.currentClass;
 
