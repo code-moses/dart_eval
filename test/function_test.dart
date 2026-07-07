@@ -471,5 +471,22 @@ void main() {
 
       expect(runtime.executeLib('package:example/main.dart', 'main'), 3);
     });
+
+    test('Explicit .call() on a function', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              final f = (int a) => a + 1;
+              return f.call(2) + g.call(3);
+            }
+
+            int g(int a) => a * 2;
+           ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 9);
+    });
   });
 }

@@ -9,6 +9,7 @@ import 'package:dart_eval/src/eval/compiler/helpers/argument_list.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/closure.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/equality.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/tearoff.dart';
 import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/offset_tracker.dart';
 import 'package:dart_eval/src/eval/compiler/statement/statement.dart';
@@ -298,6 +299,18 @@ Variable _invokeWithTarget(
   TypeRef? staticType;
 
   Pair<List<Variable>, Map<String, Variable>> argsPair;
+
+  // Calling .call() on a Function is the same as invoking it directly
+  if (e.methodName.name == 'call' &&
+      L.type.isAssignableTo(
+        ctx,
+        CoreTypes.function.ref(ctx),
+        forceAllowDynamic: false,
+      )) {
+    // A direct reference to a named function must be torn off first
+    final target = L.scopeFrameOffset == -1 ? L.tearOff(ctx) : L;
+    return invokeClosure(ctx, null, target, e.argumentList).result;
+  }
 
   final knownMethod = getKnownMethods(ctx)[L.type]?[e.methodName.name];
 
