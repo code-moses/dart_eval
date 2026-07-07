@@ -403,6 +403,29 @@ void main() {
       }, prints('1.0\n'));
     });
 
+    test("Null-aware operator with string concatenation", () async {
+      final runtime = compiler.compileWriteAndLoad({
+        "eval_test": {
+          "main.dart": '''
+            void main() {
+              final currententry = {"CustomerEmail": null, "FixedEmail": "mail@example.com"};
+              String? mail = currententry["CustomerEmail"] as String?;
+              if (!(mail ?? "").contains("@")) {
+                print(currententry["FixedEmail"]);
+              } else {
+                print(mail + ";" + currententry["FixedEmail"]);
+              }
+            }
+          ''',
+        },
+      });
+
+      // assert
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('mail@example.com\n'));
+    });
+
     test('Named params and ternary', () {
       final runtime = Compiler().compileWriteAndLoad({
         'example': {
