@@ -76,10 +76,7 @@ void main() {
         },
       });
 
-      expect(
-        runtime.executeLib('package:eval_test/main.dart', 'main'),
-        $num<num>(6),
-      );
+      expect(runtime.executeLib('package:eval_test/main.dart', 'main'), $num<num>(6));
     });
 
     test('Null coalescing operator', () {
@@ -384,6 +381,28 @@ void main() {
       }, prints('N/A\n31-60\n'));
     });
 
+    test("Integer arithmetic on parsed strings", () async {
+      final runtime = compiler.compileWriteAndLoad({
+        "eval_test": {
+          "main.dart": '''
+            void main() {
+              final currententry = {"StartOnTime": "09:00", "EndOnTime": "10:00"};
+              List<String> startParts = currententry["StartOnTime"].toString().split(":");
+              List<String> endParts = currententry["EndOnTime"].toString().split(":");
+              int startMinutes = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
+              int endMinutes = int.parse(endParts[0]) * 60 + int.parse(endParts[1]);
+              print((endMinutes - startMinutes) / 60.0);
+            }
+          ''',
+        },
+      });
+
+      // assert
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('1.0\n'));
+    });
+
     test('Named params and ternary', () {
       final runtime = Compiler().compileWriteAndLoad({
         'example': {
@@ -401,10 +420,7 @@ void main() {
         },
       });
 
-      expect(
-        runtime.executeLib('package:example/main.dart', 'main', [true])?.$value,
-        'utf8',
-      );
+      expect(runtime.executeLib('package:example/main.dart', 'main', [true])?.$value, 'utf8');
     });
 
     test('Null assertion', () {
@@ -424,10 +440,7 @@ void main() {
         },
       });
 
-      expect(
-        () => runtime.executeLib('package:example/main.dart', 'main'),
-        prints('1\n'),
-      );
+      expect(() => runtime.executeLib('package:example/main.dart', 'main'), prints('1\n'));
     });
 
     test('Short-circuiting logical operators', () {
@@ -471,10 +484,7 @@ void main() {
         },
       });
 
-      expect(
-        () => runtime.executeLib('package:example/main.dart', 'main'),
-        prints('true\n'),
-      );
+      expect(() => runtime.executeLib('package:example/main.dart', 'main'), prints('true\n'));
     });
   });
 }
