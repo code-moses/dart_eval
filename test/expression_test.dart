@@ -41,6 +41,56 @@ void main() {
       }, prints('true\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\n'));
     });
 
+    test('"is" expression with nullable types', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              final m = {"a": null, "b": "x"};
+              print(m["a"] is String?);
+              print(m["a"] is String);
+              print(m["a"] is! String?);
+              print(m["b"] is String?);
+              print(m["b"] is String);
+              String? s;
+              print(s is String);
+              print(s is String?);
+              s = "hello";
+              print(s is String);
+              print(s is int?);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('true\nfalse\nfalse\ntrue\ntrue\nfalse\ntrue\ntrue\nfalse\n'));
+    });
+
+    test('"as" cast with nullable types', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              final m = {"a": null, "b": "x"};
+              print(m["a"] as String?);
+              print(m["b"] as String?);
+              try {
+                print(m["b"] as int?);
+              } catch (e) {
+                print("cast error");
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('null\nx\ncast error\n'));
+    });
+
     test('Is with Object type and branch', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

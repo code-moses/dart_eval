@@ -3,6 +3,7 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/null_check.dart';
 import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/statement/statement.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
@@ -31,23 +32,7 @@ Variable compileAsExpression(AsExpression e, CompilerContext ctx) {
     macroBranch(
       ctx,
       null,
-      condition: (ctx) {
-        final $null = BuiltinValue().push(ctx).boxIfNeeded(ctx);
-        ctx.pushOp(
-          CheckEq.make(V.scopeFrameOffset, $null.scopeFrameOffset),
-          CheckEq.LEN,
-        );
-        ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-        final isNull = Variable.alloc(
-          ctx,
-          CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-        );
-        ctx.pushOp(LogicalNot.make(isNull.scopeFrameOffset), LogicalNot.LEN);
-        return Variable.alloc(
-          ctx,
-          CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-        );
-      },
+      condition: (ctx) => compileNotNullCheck(ctx, V),
       thenBranch: (ctx, rt) {
         _typeTestAndAssert(ctx, V, slot);
         return StatementInfo(-1);
