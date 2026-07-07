@@ -5,15 +5,22 @@ part of '../runtime.dart';
 class InvokeDynamic implements EvcOp {
   InvokeDynamic(Runtime runtime)
     : _location = runtime._readInt16(),
-      _methodIdx = runtime._readInt32();
+      _methodIdx = runtime._readInt32(),
+      _targetInArgs = runtime._readUint8() > 0;
 
-  InvokeDynamic.make(this._location, this._methodIdx);
+  InvokeDynamic.make(this._location, this._methodIdx, this._targetInArgs);
 
   final int _location;
   final int _methodIdx;
 
+  /// Whether the compiler pushed the target as the first entry in [Runtime.args].
+  /// Interpreted class methods expect `this` at args[0], while builtin/bridge
+  /// method wrappers receive the target separately and expect args to contain
+  /// only the actual arguments; this flag lets [run] normalize between the two.
+  final bool _targetInArgs;
+
   static int len(InvokeDynamic s) {
-    return Evc.BASE_OPLEN + Evc.I16_LEN + Evc.I32_LEN;
+    return Evc.BASE_OPLEN + Evc.I16_LEN + Evc.I32_LEN + Evc.I8_LEN;
   }
 
   @override
@@ -28,6 +35,10 @@ class InvokeDynamic implements EvcOp {
         if (offset == null) {
           object = object.evalSuperclass;
           continue;
+        }
+        if (!_targetInArgs) {
+          // Interpreted methods expect `this` at args[0]
+          runtime.args.insert(0, runtime.frame[_location]);
         }
         runtime.callStack.add(runtime._prOffset);
         runtime.catchStack.add([]);
@@ -105,8 +116,20 @@ class InvokeDynamic implements EvcOp {
       final method =
           ((object as $Instance).$getProperty(runtime, method0)
               as EvalFunction);
+      final List args;
+      if (method is EvalStaticFunctionPtr) {
+        // An interpreted method (e.g. on a subclassed bridge class): expects
+        // `this` at args[0].
+        args = _targetInArgs
+            ? runtime.args
+            : [runtime.frame[_location], ...runtime.args];
+      } else {
+        // Builtin/bridge methods receive the target separately, so drop it
+        // from the args if the compiler pushed it (e.g. a `dynamic` receiver).
+        args = _targetInArgs ? runtime.args.sublist(1) : runtime.args;
+      }
       try {
-        runtime.returnValue = method.call(runtime, object, runtime.args.cast());
+        runtime.returnValue = method.call(runtime, object, args.cast());
       } catch (e) {
         runtime.$throw(e);
       }
@@ -116,7 +139,8 @@ class InvokeDynamic implements EvcOp {
   }
 
   @override
-  String toString() => 'InvokeDynamic (L$_location.C$_methodIdx)';
+  String toString() =>
+      'InvokeDynamic (L$_location.C$_methodIdx${_targetInArgs ? ', target in args' : ''})';
 }
 
 class CheckEq implements EvcOp {

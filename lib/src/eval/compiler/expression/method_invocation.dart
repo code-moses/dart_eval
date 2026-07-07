@@ -396,6 +396,9 @@ Variable _invokeWithTarget(
     final op = InvokeDynamic.make(
       L.boxIfNeeded(ctx).scopeFrameOffset,
       ctx.constantPool.addOrGet(e.methodName.name),
+      // The target was pushed as the first arg (via `before: [L]`) except on
+      // the bridge path, which compiles its argument list without the target.
+      dec0?.isBridge != true,
     );
     ctx.pushOp(op, InvokeDynamic.len(op));
   }
