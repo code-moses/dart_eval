@@ -476,6 +476,42 @@ void main() {
       }, prints('mail@example.com\n'));
     });
 
+    test('Ternary with mixed boxed branches', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              final m = {"a": null, "b": "full"};
+              print(m["a"] == null ? "empty" : m["a"]);
+              print(m["b"] == null ? "empty" : m["b"]);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('empty\nfull\n'));
+    });
+
+    test('Nested ternary', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              int x = 5;
+              print(x > 3 ? (x > 4 ? "big" : "mid") : "small");
+              print(x < 3 ? "small" : (x < 4 ? "mid" : "big"));
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('big\nbig\n'));
+    });
+
     test('String interpolation of null values', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

@@ -17,8 +17,11 @@ Variable compileConditionalExpression(
   ConditionalExpression e, [
   TypeRef? boundType,
 ]) {
-  ctx.setLocal('#conditional', BuiltinValue().push(ctx));
-  final vRef = IdentifierReference(null, '#conditional');
+  // The name must be unique so that nested conditional expressions don't
+  // shadow each other's result variable
+  final resultName = '#conditional${ctx.out.length}';
+  ctx.setLocal(resultName, BuiltinValue().push(ctx));
+  final vRef = IdentifierReference(null, resultName);
   final types = <TypeRef>{?boundType};
 
   macroBranch(
@@ -33,13 +36,23 @@ Variable compileConditionalExpression(
       return c;
     },
     thenBranch: (ctx, rt) {
-      final v = compileExpression(e.thenExpression, ctx, boundType);
+      // Box so both branches store the same representation regardless of
+      // which one executes at runtime
+      final v = compileExpression(
+        e.thenExpression,
+        ctx,
+        boundType,
+      ).boxIfNeeded(ctx);
       types.add(v.type);
       vRef.setValue(ctx, v);
       return StatementInfo(-1);
     },
     elseBranch: (ctx, rt) {
-      final v = compileExpression(e.elseExpression, ctx, boundType);
+      final v = compileExpression(
+        e.elseExpression,
+        ctx,
+        boundType,
+      ).boxIfNeeded(ctx);
       types.add(v.type);
       vRef.setValue(ctx, v);
       return StatementInfo(-1);
