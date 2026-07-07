@@ -176,12 +176,31 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
     {},
   );
 
+  final intUnaryOp = KnownMethod(
+    AlwaysReturnType(CoreTypes.int.ref(ctx), false),
+    [],
+    {},
+  );
+
+  final doubleUnaryOp = KnownMethod(
+    AlwaysReturnType(CoreTypes.double.ref(ctx), false),
+    [],
+    {},
+  );
+
+  final numUnaryOp = KnownMethod(
+    AlwaysReturnType(CoreTypes.num.ref(ctx), false),
+    [],
+    {},
+  );
+
   return _knownMethods = {
     CoreTypes.nullType.ref(ctx): {...knownObject},
     CoreTypes.int.ref(ctx): {
       ...knownObject,
       '+': intBinaryOp,
       '-': intBinaryOp,
+      'unary-': intUnaryOp,
       '*': intBinaryOp,
       '/': intBinaryOp,
       '%': intBinaryOp,
@@ -203,6 +222,7 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       ...knownObject,
       '+': doubleBinaryOp,
       '-': doubleBinaryOp,
+      'unary-': doubleUnaryOp,
       '*': doubleBinaryOp,
       '/': doubleBinaryOp,
       '%': doubleBinaryOp,
@@ -219,6 +239,7 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       ...knownObject,
       '+': numBinaryOp,
       '-': numBinaryOp,
+      'unary-': numUnaryOp,
       '*': numBinaryOp,
       '/': numBinaryOp,
       '~/': numBinaryOp,

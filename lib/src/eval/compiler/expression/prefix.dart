@@ -40,6 +40,11 @@ Variable compilePrefixExpression(
   if (method == '-' &&
       V.type != CoreTypes.int.ref(ctx) &&
       V.type != CoreTypes.double.ref(ctx)) {
+    if (V.type == CoreTypes.dynamic.ref(ctx) ||
+        V.type.isAssignableTo(ctx, CoreTypes.num.ref(ctx))) {
+      // Dispatch to the num 'unary-' operator at runtime
+      return V.boxIfNeeded(ctx).invoke(ctx, 'unary-', []).result;
+    }
     throw CompileError(
       'Unary prefix "-" is currently only supported for ints and doubles (type: ${V.type})',
       e,

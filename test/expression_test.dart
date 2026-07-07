@@ -476,6 +476,29 @@ void main() {
       }, prints('mail@example.com\n'));
     });
 
+    test('Unary minus on num and dynamic operands', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              int i = 5;
+              print(-i);
+              num n = 5;
+              print(-n);
+              dynamic d = 2.5;
+              print(-d);
+              dynamic j = -3;
+              print(-j);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('-5\n-5\n-2.5\n3\n'));
+    });
+
     test('Ternary with mixed boxed branches', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

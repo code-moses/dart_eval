@@ -273,6 +273,8 @@ class $num<T extends num> implements $Instance {
         return __plus;
       case '-':
         return __minus;
+      case 'unary-':
+        return __negate;
       case '*':
         return __mul;
       case '/':
@@ -366,6 +368,21 @@ class $num<T extends num> implements $Instance {
   static $Value? _minus(Runtime runtime, $Value? target, List<$Value?> args) {
     final other = args[0];
     final evalResult = target!.$value - other!.$value;
+
+    if (evalResult is int) {
+      return $int(evalResult);
+    }
+
+    if (evalResult is double) {
+      return $double(evalResult);
+    }
+
+    throw UnimplementedError();
+  }
+
+  static const $Function __negate = $Function(_negate);
+  static $Value? _negate(Runtime runtime, $Value? target, List<$Value?> args) {
+    final evalResult = -target!.$value;
 
     if (evalResult is int) {
       return $int(evalResult);
