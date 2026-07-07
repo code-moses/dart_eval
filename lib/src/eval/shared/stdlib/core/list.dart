@@ -2110,7 +2110,12 @@ class _$List$view<E> extends $List<E> {
   static const $Function __sort = $Function(_sort);
 
   static $Value? _sort(Runtime runtime, $Value? target, List<$Value?> args) {
-    final compare = args[0] as EvalCallable;
+    final compare =
+        (args.isNotEmpty ? args[0] : null) as EvalCallable? ??
+        $Function(
+          (runtime, target, args) =>
+              $int(Comparable.compare(args[0]?.$value, args[1]?.$value)),
+        );
     final view = (target! as _$List$view);
 
     view.$value.sort(

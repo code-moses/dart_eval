@@ -2,6 +2,30 @@
 
 part of '../runtime.dart';
 
+/// View over a dynamic dispatch argument list that reads null for missing
+/// (optional) arguments, matching the null-padding the compiler emits at
+/// static call sites.
+class _PaddedArgs with ListMixin<$Value?> {
+  _PaddedArgs(this._args);
+
+  final List _args;
+
+  @override
+  int get length => _args.length;
+
+  @override
+  set length(int newLength) =>
+      throw UnsupportedError('Cannot resize argument list');
+
+  @override
+  $Value? operator [](int index) =>
+      index < _args.length ? _args[index] as $Value? : null;
+
+  @override
+  void operator []=(int index, $Value? value) =>
+      throw UnsupportedError('Cannot modify argument list');
+}
+
 class InvokeDynamic implements EvcOp {
   InvokeDynamic(Runtime runtime)
     : _location = runtime._readInt16(),
@@ -116,20 +140,26 @@ class InvokeDynamic implements EvcOp {
       final method =
           ((object as $Instance).$getProperty(runtime, method0)
               as EvalFunction);
-      final List args;
+      final List<$Value?> args;
       if (method is EvalStaticFunctionPtr) {
         // An interpreted method (e.g. on a subclassed bridge class): expects
         // `this` at args[0].
-        args = _targetInArgs
-            ? runtime.args
-            : [runtime.frame[_location], ...runtime.args];
+        args =
+            (_targetInArgs
+                    ? runtime.args
+                    : [runtime.frame[_location], ...runtime.args])
+                .cast();
       } else {
         // Builtin/bridge methods receive the target separately, so drop it
         // from the args if the compiler pushed it (e.g. a `dynamic` receiver).
-        args = _targetInArgs ? runtime.args.sublist(1) : runtime.args;
+        // Wrap the args so that missing optional arguments read as null,
+        // matching the null-padding the compiler emits at static call sites.
+        args = _PaddedArgs(
+          _targetInArgs ? runtime.args.sublist(1) : runtime.args,
+        );
       }
       try {
-        runtime.returnValue = method.call(runtime, object, args.cast());
+        runtime.returnValue = method.call(runtime, object, args);
       } catch (e) {
         runtime.$throw(e);
       }

@@ -518,5 +518,24 @@ void main() {
         runtime.executeLib('package:eval_test/main.dart', 'main');
       }, prints('1,2,3,5,8,9\n'));
     });
+
+    test('List methods with optional arguments via dynamic receiver', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              dynamic l = [3, 1, 2];
+              l.sort();
+              print(l);
+              print(l.join(","));
+              print(l.toList());
+            }
+          ''',
+        },
+      });
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('[1, 2, 3]\n1,2,3\n[1, 2, 3]\n'));
+    });
   });
 }
