@@ -592,5 +592,28 @@ void main() {
       expect(runtime.executeLib('package:eval_test/main.dart', 'main'), 600);
     });
 
+    test('Index assignment on dynamic receiver', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              Map k = {'a': {'b': 'c'}};
+              k['a']['b'] = 'd';
+              print(k['a']['b']);
+              dynamic l = [1, 2, 3];
+              l[0] = 5;
+              print(l[0]);
+              dynamic m = {'x': 1};
+              m['x'] += 2;
+              print(m['x']);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('d\n5\n3\n'));
+    });
   });
 }

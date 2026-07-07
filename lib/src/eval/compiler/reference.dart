@@ -720,7 +720,11 @@ class IndexedReference implements Reference {
     _variable = _variable.updated(ctx);
     _index = _index.updated(ctx);
 
-    if (_variable.type.isAssignableTo(ctx, CoreTypes.list.ref(ctx))) {
+    if (_variable.type.isAssignableTo(
+      ctx,
+      CoreTypes.list.ref(ctx),
+      forceAllowDynamic: false,
+    )) {
       if (!_index.type.isAssignableTo(ctx, CoreTypes.int.ref(ctx))) {
         throw CompileError(
           'TypeError: Cannot use variable of type ${_index.type} as list index',
