@@ -25,24 +25,35 @@ Variable compileAsExpression(AsExpression e, CompilerContext ctx) {
     return V.copyWithUpdate(ctx, type: slot);
   }
 
-  if (slot.nullable) {
-    // A nullable cast accepts null, so only run the type test when the
-    // runtime value is non-null.
-    V = V.boxIfNeeded(ctx);
-    macroBranch(
-      ctx,
-      null,
-      condition: (ctx) => compileNotNullCheck(ctx, V),
-      thenBranch: (ctx, rt) {
-        _typeTestAndAssert(ctx, V, slot);
-        return StatementInfo(-1);
-      },
-    );
-    return V.copyWithUpdate(ctx, type: slot.copyWith(boxed: true));
-  }
+  // If the value is statically known to fit the slot, the cast can never
+  // fail and no runtime test is needed. A nullable static type may still
+  // hold null at runtime, so this requires the slot to accept null too.
+  final staticallyFits =
+      (!V.type.nullable || slot.nullable) &&
+      V.type.isAssignableTo(ctx, slot, forceAllowDynamic: false);
 
-  // Otherwise type-test and assert
-  _typeTestAndAssert(ctx, V, slot);
+  if (!staticallyFits) {
+    // The IsType op requires a boxed value
+    V = V.boxIfNeeded(ctx);
+
+    if (slot.nullable) {
+      // A nullable cast accepts null, so only run the type test when the
+      // runtime value is non-null.
+      macroBranch(
+        ctx,
+        null,
+        condition: (ctx) => compileNotNullCheck(ctx, V),
+        thenBranch: (ctx, rt) {
+          _typeTestAndAssert(ctx, V, slot);
+          return StatementInfo(-1);
+        },
+      );
+      return V.copyWithUpdate(ctx, type: slot.copyWith(boxed: true));
+    }
+
+    // Otherwise type-test and assert
+    _typeTestAndAssert(ctx, V, slot);
+  }
 
   // If the type changes between num and int/double, unbox/box
   if (slot == CoreTypes.num.ref(ctx)) {

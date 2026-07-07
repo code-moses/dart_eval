@@ -476,6 +476,25 @@ void main() {
       }, prints('mail@example.com\n'));
     });
 
+    test('"as" cast on unboxed value', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              int i = 5;
+              num n = i as num;
+              print(n);
+              print(5.5 as double);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('5\n5.5\n'));
+    });
+
     test('Named params and ternary', () {
       final runtime = Compiler().compileWriteAndLoad({
         'example': {
