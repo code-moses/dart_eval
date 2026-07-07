@@ -519,6 +519,26 @@ void main() {
       }, prints('1,2,3,5,8,9\n'));
     });
 
+    test('Null-aware spread operator in list literal', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              List<int>? a;
+              print([...?a, 3]);
+              a = [1, 2];
+              print([...?a, 3]);
+              final m = {"a": null};
+              print([...?(m["a"] as List<int>?), 4]);
+            }
+          ''',
+        },
+      });
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('[3]\n[1, 2, 3]\n[4]\n'));
+    });
+
     test('List methods with optional arguments via dynamic receiver', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

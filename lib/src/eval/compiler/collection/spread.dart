@@ -4,6 +4,8 @@ import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/null_check.dart';
+import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/macros/loop.dart';
 import 'package:dart_eval/src/eval/compiler/statement/statement.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
@@ -23,12 +25,6 @@ List<TypeRef> compileSpreadElementForList(
 
   // Compile the expression to get the spreaded collection
   var collection = compileExpression(expression, ctx, list.type);
-
-  if (isNullAware) {
-    // For null-aware spread, we need to check if the collection is not null
-    // TODO: implement null check for ...? operator
-    // For now, treat it as a normal spread
-  }
 
   // Check if the collection is iterable
   final iterableType = CoreTypes.iterable.ref(ctx);
@@ -55,15 +51,55 @@ List<TypeRef> compileSpreadElementForList(
     );
   }
 
-  // Implement the spread using a loop similar to boxListContents
-  late Variable $i, $1, len;
+  if (isNullAware) {
+    // For a null-aware spread, only append the elements if the collection
+    // is non-null at runtime
+    final boxedCollection = collection.boxIfNeeded(ctx);
+    macroBranch(
+      ctx,
+      null,
+      condition: (ctx) => compileNotNullCheck(ctx, boxedCollection),
+      thenBranch: (ctx, rt) {
+        // The spread loop ops require an unboxed collection. Unbox happens
+        // in place, so this is safe to skip when the branch is not taken.
+        final unboxed = boxedCollection.unboxIfNeeded(ctx, false);
+        _compileSpreadLoop(ctx, unboxed, list, collectionElementType, box);
+        return StatementInfo(-1);
+      },
+      source: e,
+    );
+    return [collectionElementType];
+  }
 
+  _compileSpreadLoop(
+    ctx,
+    collection.unboxIfNeeded(ctx),
+    list,
+    collectionElementType,
+    box,
+  );
+
+  return [collectionElementType];
+}
+
+/// Compiles a loop that appends each element of [collection] to [list],
+/// similar to boxListContents.
+void _compileSpreadLoop(
+  CompilerContext ctx,
+  Variable collection,
+  Variable list,
+  TypeRef collectionElementType,
+  bool box,
+) {
   // Initialize loop variables
-  $i = BuiltinValue(intval: 0).push(ctx);
-  $1 = BuiltinValue(intval: 1).push(ctx);
+  final $i = BuiltinValue(intval: 0).push(ctx);
+  final $1 = BuiltinValue(intval: 1).push(ctx);
 
   // Get the length of the collection
-  len = Variable.alloc(ctx, CoreTypes.int.ref(ctx).copyWith(boxed: false));
+  final len = Variable.alloc(
+    ctx,
+    CoreTypes.int.ref(ctx).copyWith(boxed: false),
+  );
   ctx.pushOp(
     PushIterableLength.make(collection.scopeFrameOffset),
     PushIterableLength.LEN,
@@ -126,6 +162,4 @@ List<TypeRef> compileSpreadElementForList(
       // Nothing additional needed after the loop
     },
   );
-
-  return [collectionElementType];
 }
