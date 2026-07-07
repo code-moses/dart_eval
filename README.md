@@ -45,6 +45,11 @@
 > - Index assignment on `dynamic` receivers, e.g. `k['a']['b'] = 'd'` on an untyped map
 >   ([#228](https://github.com/ethanblake4/dart_eval/issues/228))
 >
+> **New language support**
+> - `String` `*` operator (`'ab' * 3`)
+> - Spread (`...`/`...?`), `if` and `for` elements in set and map literals, matching the
+>   existing support for list literals
+>
 > All fixes are covered by regression tests; the full upstream test suite passes.
 
 `dart_eval` is an extensible bytecode compiler and interpreter for the Dart language, 
