@@ -38,7 +38,7 @@ const $neverCls = BridgeClassDef(
 );
 
 /// dart_eval [$Value] representation of [null]
-class $null implements $Value {
+class $null implements $Instance {
   const $null();
 
   static const $declaration = BridgeClassDef(
@@ -56,6 +56,47 @@ class $null implements $Value {
   @override
   int $getRuntimeType(Runtime runtime) =>
       runtime.lookupType(CoreTypes.nullType);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'toString':
+        return __toString;
+      case 'hashCode':
+        return $int(null.hashCode);
+      case '==':
+        return __equals;
+      case '!=':
+        return __notEquals;
+    }
+    throw EvalUnknownPropertyException(identifier);
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    throw EvalUnknownPropertyException(identifier);
+  }
+
+  static const $Function __toString = $Function(_toString);
+
+  static $Value? _toString(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) => $String('null');
+
+  static const $Function __equals = $Function(_equals);
+
+  static $Value? _equals(Runtime runtime, $Value? target, List<$Value?> args) =>
+      $bool(args[0] == null || args[0] is $null);
+
+  static const $Function __notEquals = $Function(_notEquals);
+
+  static $Value? _notEquals(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) => $bool(!(args[0] == null || args[0] is $null));
 
   @override
   bool operator ==(Object other) => other is $null;

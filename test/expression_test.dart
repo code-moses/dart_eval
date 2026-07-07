@@ -476,6 +476,27 @@ void main() {
       }, prints('mail@example.com\n'));
     });
 
+    test('String interpolation of null values', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              String? s;
+              print("value: \$s");
+              dynamic d = {"a": null}["a"];
+              print("value: \$d");
+              s = "set";
+              print("value: \$s");
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('value: null\nvalue: null\nvalue: set\n'));
+    });
+
     test('Null-aware access on nullable locals', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

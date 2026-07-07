@@ -22,7 +22,9 @@ Variable compileStringInterpolation(
     } else if (element is InterpolationExpression) {
       final V = compileExpression(element.expression, ctx);
       Variable vStr;
-      if (V.type == CoreTypes.string.ref(ctx)) {
+      // A nullable String may hold null at runtime, which must be
+      // interpolated as 'null' via toString()
+      if (V.type == CoreTypes.string.ref(ctx) && !V.type.nullable) {
         vStr = V;
       } else {
         vStr = V.invoke(ctx, 'toString', []).result;
