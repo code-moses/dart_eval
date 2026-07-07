@@ -603,6 +603,26 @@ void main() {
       }, prints('null\nnull\n3\nfalse\nABC\n'));
     });
 
+    test('Chained null-aware accesses', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              String? s = " ab ";
+              print(s?.trim()?.length);
+              print(s?.trim().length);
+              s = null;
+              print(s?.trim()?.length);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('2\n2\nnull\n'));
+    });
+
     test('"as" cast on unboxed value', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

@@ -39,7 +39,12 @@ Variable compilePropertyAccess(
         final V = boxedL
             .getProperty(ctx, pa.propertyName.name)
             .boxIfNeeded(ctx);
-        out = out.copyWith(type: V.type.copyWith(nullable: true));
+        // Clear the null concreteTypes inherited from the null initializer,
+        // or chained null-aware operators would short-circuit unconditionally
+        out = out.copyWith(
+          type: V.type.copyWith(nullable: true),
+          concreteTypes: [],
+        );
         ctx.pushOp(
           CopyValue.make(out.scopeFrameOffset, V.scopeFrameOffset),
           CopyValue.LEN,
