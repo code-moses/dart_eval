@@ -615,5 +615,87 @@ void main() {
         runtime.executeLib('package:eval_test/main.dart', 'main');
       }, prints('d\n5\n3\n'));
     });
+
+    test('Spread operator in map literal', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            String main() {
+              final defaults = {'a': 1, 'b': 2};
+              final m = {...defaults, 'b': 3, 'c': 4};
+              return '\${m['a']}\${m['b']}\${m['c']}\${m.length}';
+            }
+          ''',
+        },
+      });
+
+      expect(
+        runtime.executeLib('package:eval_test/main.dart', 'main'),
+        $String('1343'),
+      );
+    });
+
+    test('Null-aware spread operator in map literal', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            String main() {
+              Map<String, int>? a;
+              Map<String, int>? b = {'x': 1};
+              final m = {...?a, ...?b, 'y': 2};
+              return '\${m.length}\${m['x']}\${m['y']}';
+            }
+          ''',
+        },
+      });
+
+      expect(
+        runtime.executeLib('package:eval_test/main.dart', 'main'),
+        $String('212'),
+      );
+    });
+
+    test('Collection if and for in map literal', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            String main() {
+              final flag = true;
+              final extra = {'e': 5};
+              final m = {
+                'a': 1,
+                if (flag) ...extra,
+                for (var i = 0; i < 2; i++) 'k\$i': i * 10,
+                if (!flag) 'never': 0 else 'always': 9,
+              };
+              return '\${m.length}:\${m['e']}:\${m['k1']}:\${m['always']}';
+            }
+          ''',
+        },
+      });
+
+      expect(
+        runtime.executeLib('package:eval_test/main.dart', 'main'),
+        $String('5:5:10:9'),
+      );
+    });
+
+    test('Spread, if and for in set literal', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            int main() {
+              final a = {1, 2};
+              final l = [5, 5, 6];
+              final s = {...a, 2, if (true) 3, for (var i = 3; i < 5; i++) i, ...l};
+              return s.length;
+            }
+          ''',
+        },
+      });
+
+      // {1, 2} + {2} + {3} + {3, 4} + [5, 5, 6] deduplicates to {1..6}
+      expect(runtime.executeLib('package:eval_test/main.dart', 'main'), 6);
+    });
   });
 }
