@@ -4,6 +4,41 @@
 [![Star on Github](https://img.shields.io/github/stars/ethanblake4/dart_eval?logo=github&colorB=orange&label=stars)](https://github.com/ethanblake4/dart_eval)
 [![Github-sponsors](https://img.shields.io/badge/sponsor-30363D?logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/ethanblake4)
 
+> ## About this fork
+>
+> This fork ([code-moses/dart_eval](https://github.com/code-moses/dart_eval)) is ahead of
+> [ethanblake4/dart_eval](https://github.com/ethanblake4/dart_eval) by the following changes:
+>
+> **Opt-in feature**
+> - `Compiler.softNullableCasts`: C#-style soft casts — when enabled, a failed cast to a
+>   *nullable* type (`myValue as MyType?`) evaluates to null instead of throwing, composing
+>   with `??` and `?.`. Casts to non-nullable types remain strict. Defaults to off (standard
+>   Dart semantics).
+>
+> **Dynamic dispatch & method invocation fixes**
+> - Method calls on `dynamic` receivers no longer pass the receiver as the first argument to
+>   builtin methods (e.g. `s.split(":")` splitting by the receiver itself)
+> - Operators on interpreted classes (e.g. `Vec(1) + Vec(2)`) invoke with the correct target
+> - Arguments are boxed across dynamic dispatch boundaries; missing optional arguments are
+>   null-padded (`l.sort()`, `join()`, `toList()` on dynamic receivers)
+> - Explicit `.call()` on functions compiles; unary minus works on `num`/`dynamic` operands
+>
+> **Null safety & nullability fixes**
+> - `as`/`is` respect nullability (`null as String?`, `null is String?`); `as` no longer
+>   crashes on unboxed values
+> - `==`/`!=` never invoke a user-defined `operator ==` with a null operand (Dart semantics)
+> - Null-aware access on unboxed nullable receivers, chained null-aware operators
+>   (`s?.trim()?.length`), string interpolation of null values, and the null-aware spread
+>   operator (`...?`) all work correctly
+>
+> **Expression fixes**
+> - Conditional (ternary) expressions: consistent boxing across branches and correct results
+>   when nested
+> - Null-coalescing with `toString()` and nested loop runtime flow corruption (pre-session
+>   fixes, [#298](https://github.com/ethanblake4/dart_eval/pull/298)/[#299](https://github.com/ethanblake4/dart_eval/pull/299))
+>
+> All fixes are covered by regression tests; the full upstream test suite passes.
+
 `dart_eval` is an extensible bytecode compiler and interpreter for the Dart language, 
 written in Dart, enabling dynamic execution and codepush for Flutter and Dart AOT.
 
