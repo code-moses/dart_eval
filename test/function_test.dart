@@ -488,5 +488,113 @@ void main() {
 
       expect(runtime.executeLib('package:example/main.dart', 'main'), 9);
     });
+
+    test('Closure captures for-in loop variable per iteration', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            String main() {
+              final fns = <String Function()>[];
+              for (final s in ['a', 'b', 'c']) {
+                fns.add(() => s);
+              }
+              var out = '';
+              for (final f in fns) {
+                out = out + f();
+              }
+              return out;
+            }
+           ''',
+        },
+      });
+
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        $String('abc'),
+      );
+    });
+
+    test('Closure captures classic for loop variable per iteration', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              final fns = <int Function()>[];
+              for (var i = 0; i < 3; i++) {
+                fns.add(() => i);
+              }
+              var sum = 0;
+              for (final f in fns) {
+                sum = sum + f();
+              }
+              return sum;
+            }
+           ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 3);
+    });
+
+    test('Closure captures loop body local per iteration', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            String main() {
+              final fns = [for (var i = 0; i < 2; i++) () => '\$i'];
+              var out = '';
+              for (final f in fns) {
+                out = out + f();
+              }
+              return out;
+            }
+           ''',
+        },
+      });
+
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        $String('01'),
+      );
+    });
+
+    test('Closure in loop writing captured variable still shares state', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              var sum = 0;
+              for (final x in [1, 2, 3]) {
+                final fn = () { sum = sum + x; };
+                fn();
+              }
+              return sum;
+            }
+           ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 6);
+    });
+
+    test('Closure in loop capturing only outer variable sees later writes', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              var total = 10;
+              final fns = <int Function()>[];
+              for (var i = 0; i < 2; i++) {
+                fns.add(() => total);
+              }
+              total = 15;
+              return fns[0]() + fns[1]();
+            }
+           ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 30);
+    });
   });
 }

@@ -10,6 +10,7 @@ import 'package:dart_eval/src/eval/compiler/declaration/function.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/method.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/variable.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
+import 'package:dart_eval/src/eval/compiler/optimizer/closure_capture.dart';
 
 int? compileDeclaration(
   Declaration d,
@@ -18,6 +19,7 @@ int? compileDeclaration(
   int? fieldIndex,
   List<FieldDeclaration>? fields,
 }) {
+  ctx.copyCaptureClosures = findCopyCaptureClosures(d);
   if (d is ClassDeclaration) {
     compileClassDeclaration(ctx, d);
   } else if (d is EnumDeclaration) {

@@ -193,13 +193,16 @@ Variable compileFunctionExpression(
     intval: ctx.constantPool.addOrGet(sortedNamedArgTypes),
   ).push(ctx).pushArg(ctx);
 
-  ctx.pushOp(PushFunctionPtr.make(fnOffset), PushFunctionPtr.LEN);
-
-  /*if (ctx.labels.any((label) => label.type == LabelType.loop)) {
-    ctx.pushOp(PushFunctionPtrCopyCapture.make(fnOffset), PushFunctionPtr.LEN);
+  if (ctx.copyCaptureClosures.contains(e.offset)) {
+    // Closures in loops that read loop variables capture a snapshot of the
+    // enclosing frame, approximating Dart's per-iteration variable binding
+    ctx.pushOp(
+      PushFunctionPtrCopyCapture.make(fnOffset),
+      PushFunctionPtrCopyCapture.LEN,
+    );
   } else {
     ctx.pushOp(PushFunctionPtr.make(fnOffset), PushFunctionPtr.LEN);
-  }*/
+  }
 
   return Variable.alloc(
     ctx,

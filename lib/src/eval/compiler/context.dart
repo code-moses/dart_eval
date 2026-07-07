@@ -230,6 +230,12 @@ class CompilerContext with ScopeContext {
   Map<CompilerLabel, Set<int>> labelReferences = {};
   final List<Variable> caughtExceptions = [];
   PrescanContext? preScan;
+
+  /// Source offsets of [FunctionExpression]s in the declaration currently
+  /// being compiled that must capture a copy of the enclosing frame rather
+  /// than a live reference (closures in loops reading loop variables). See
+  /// `findCopyCaptureClosures`.
+  Set<int> copyCaptureClosures = {};
   int nearestAsyncFrame = -1;
   int globalIndex = 0;
   String? version;
