@@ -319,6 +319,36 @@ void main() {
       }, prints('int:6\nbig-int:51\ndouble:2.5\nstring:3\n'));
     });
 
+    test('Nested list and mixed record/list patterns', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              final grid = [[1, 2], [3, 4]];
+              if (grid case [[var a, _], [_, var d]]) print(a + d);
+              final deep = [[[5]]];
+              if (deep case [[[var v]]]) print(v);
+              final listOfRecords = [(1, 2), (3, 4)];
+              if (listOfRecords case [(var a, _), (_, var d)]) print(a + d);
+              final recordOfLists = ([1, 2], [3, 4]);
+              if (recordOfLists case ([var a, _], [_, var d])) print(a + d);
+              // inner length mismatch does not match
+              final ragged = [[1, 2, 3], [4]];
+              if (ragged case [[var a, var b], [var c]]) {
+                print(a + b + c);
+              } else {
+                print('no-match');
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('5\n5\n5\n5\nno-match\n'));
+    });
+
     test('Pattern guard is not evaluated when the pattern does not match', () {
       final runtime = compiler.compileWriteAndLoad({
         'example': {

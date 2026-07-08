@@ -214,17 +214,20 @@ Variable patternMatchAndBind(
       // A list pattern only matches a list of exactly the pattern's length.
       // Check the length first so a length mismatch fails the match instead
       // of binding against out-of-range or extra elements. Box the collection
-      // so the `length` property access works; IndexedReference below unboxes
-      // as needed for element access.
+      // so the `length` property access works.
       V = V.boxIfNeeded(ctx);
       final length = V.getProperty(ctx, 'length');
       Variable result = length.invoke(ctx, '==', [
         BuiltinValue(intval: pat.elements.length).push(ctx),
       ]).result;
+      // Unbox once and index off the stable unboxed handle: reusing the boxed
+      // V would make each element access re-emit an Unbox, double-unboxing the
+      // slot at runtime (breaks nested list patterns).
+      final unboxedV = V.unboxIfNeeded(ctx);
       for (var i = 0; i < pat.elements.length; i++) {
         final element = pat.elements[i];
         final listEl = IndexedReference(
-          V,
+          unboxedV,
           BuiltinValue(intval: i).push(ctx),
         ).getValue(ctx);
         final elementResult = patternMatchAndBind(
