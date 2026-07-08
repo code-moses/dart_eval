@@ -670,6 +670,31 @@ void main() {
       }, prints('2\n2\nnull\n'));
     });
 
+    test('Null-aware index access', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              List<int>? l = [10, 20];
+              print(l?[1] ?? -1);
+              Map<String, List<int>>? m = {'a': [1, 2]};
+              print(m?['a']?[1] ?? -1);
+              l = null;
+              print(l?[0] ?? -1);
+              m = null;
+              print(m?['a']?[0] ?? -1);
+              Map<String, String>? empty = {};
+              print(empty?['x'] ?? 'none');
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('20\n2\n-1\n-1\nnone\n'));
+    });
+
     test('Soft nullable casts (softNullableCasts option)', () {
       final runtime = (Compiler()..softNullableCasts = true)
           .compileWriteAndLoad({
