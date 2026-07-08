@@ -732,5 +732,27 @@ void main() {
       final result = runtime.executeLib('package:example/main.dart', 'main');
       expect(result, 42);
     });
+
+    test('Inherited Object methods on a class without overrides', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class Foo {}
+            void main() {
+              final f = Foo();
+              final g = Foo();
+              print(f == f);
+              print(f == g);
+              print(f.hashCode == f.hashCode);
+              print(f.toString() is String);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('true\nfalse\ntrue\ntrue\n'));
+    });
   });
 }

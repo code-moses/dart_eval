@@ -137,8 +137,13 @@ class InvokeDynamic implements EvcOp {
         runtime._prOffset = object.offset;
         return;
       }
+      // When the interpreted superclass walk above reaches the top of the
+      // chain without finding the method, [object] is null. Fall back to the
+      // original instance so inherited core Object methods (toString,
+      // hashCode, ==) resolve via getCoreObjectProperty instead of crashing.
+      final target = object ?? runtime.frame[_location];
       final method =
-          ((object as $Instance).$getProperty(runtime, method0)
+          ((target as $Instance).$getProperty(runtime, method0)
               as EvalFunction);
       final List<$Value?> args;
       if (method is EvalStaticFunctionPtr) {
@@ -159,7 +164,7 @@ class InvokeDynamic implements EvcOp {
         );
       }
       try {
-        runtime.returnValue = method.call(runtime, object, args);
+        runtime.returnValue = method.call(runtime, target, args);
       } catch (e) {
         runtime.$throw(e);
       }
