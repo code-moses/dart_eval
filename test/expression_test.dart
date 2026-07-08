@@ -607,6 +607,24 @@ void main() {
       }, prints('2\n'));
     });
 
+    test('Ternary result assigned to typed int variable', () {
+      // Regression: the boxed ternary result must be unboxed before storage
+      // in an int variable, or later arithmetic sees a boxed value.
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            int main() {
+              final s = 'b';
+              final int r = (s == 'b') ? 2 : 0;
+              return r + 100;
+            }
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:eval_test/main.dart', 'main'), 102);
+    });
+
     test('String interpolation of null values', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

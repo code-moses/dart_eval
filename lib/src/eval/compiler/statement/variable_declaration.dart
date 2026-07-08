@@ -47,6 +47,11 @@ void compileVariableDeclarationList(
       }
       if (!((type ?? res.type).isUnboxedAcrossFunctionBoundaries)) {
         res = res.boxIfNeeded(ctx);
+      } else {
+        // The slot allocated below is tracked as unboxed, so a boxed
+        // initializer (e.g. the result of a ternary or switch expression)
+        // must be unboxed first or the value and its tracked boxing disagree
+        res = res.unboxIfNeeded(ctx);
       }
       if (res.name != null) {
         final type0 = type ?? res.type;
