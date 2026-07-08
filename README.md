@@ -49,15 +49,21 @@
 > - Switch expressions (`switch (x) { 1 => 'a', _ => 'b' }`) with constant, list, record and
 >   object patterns, `when` guards and variable binding, usable in any expression position
 > - If-case statements (`if (value case pattern when guard) ...`) with pattern variable binding
+> - Typed pattern variables promote (`if (o case int n) n + 1`); nested list patterns
+>   (`[[a, _], [_, d]]`) and mixed record/list patterns
 > - Null-aware index operator (`target?[index]`), including chained forms like `m?['a']?[1]`
 > - `String` `*` operator (`'ab' * 3`)
 > - Spread (`...`/`...?`), `if` and `for` elements in set and map literals, matching the
 >   existing support for list literals
+> - Script enums: implicit `name` getter and instance methods/getters
+> - Inherited `Object` methods (`toString`, `hashCode`, `==`) on script class instances that
+>   don't override them
 >
 > **Additional fixes**
 > - Ternary/switch-expression results keep correct boxing (returning class instances or enums,
 >   reading a local in a branch, or assigning the result to a typed `int` no longer crash)
-> - List patterns now verify length, so `[1, 2, 3]` no longer matches `[var a, var b]`
+> - Pattern guards are only evaluated when the pattern matches (no stale bindings or side effects)
+> - List patterns verify length, so `[1, 2, 3]` no longer matches `[var a, var b]`
 >
 > All fixes are covered by regression tests; the full upstream test suite passes.
 
