@@ -491,7 +491,19 @@ DeclarationOrBridge<MethodDeclaration, BridgeMethodDef> resolveInstanceMethod(
       declaration: dec as MethodDeclaration,
     );
   } else {
-    final $class = dec0.declaration as ClassDeclaration;
+    final decl = dec0.declaration;
+    if (decl is EnumDeclaration) {
+      // Enums implicitly extend Enum (and ultimately Object); resolve
+      // inherited methods like toString there rather than casting to a class
+      return resolveInstanceMethod(
+        ctx,
+        CoreTypes.enumType.ref(ctx),
+        methodName,
+        source,
+        bottomType0,
+      );
+    }
+    final $class = decl as ClassDeclaration;
     if ($class.extendsClause == null) {
       return resolveInstanceMethod(
         ctx,

@@ -16,11 +16,18 @@ import 'package:dart_eval/src/eval/runtime/runtime.dart';
 int compileMethodDeclaration(
   MethodDeclaration d,
   CompilerContext ctx,
-  ClassDeclaration parent,
+  Declaration parent,
 ) {
   ///ctx.runPrescan(d);
   final b = d.body;
-  final parentName = parent.namePart.toString();
+  final parentName = switch (parent) {
+    ClassDeclaration() => parent.namePart.toString(),
+    EnumDeclaration() => parent.namePart.toString(),
+    _ => throw CompileError(
+      'Cannot compile method on ${parent.runtimeType}',
+      d,
+    ),
+  };
   final methodName = d.name.lexeme;
   final pos = beginMethod(ctx, d, d.offset, '$parentName.$methodName()');
 

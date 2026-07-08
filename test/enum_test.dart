@@ -133,5 +133,47 @@ void main() {
       );
       expect(result, 1);
     });
+
+    test('Enum name getter', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            enum Color { red, green, blue }
+            void main() {
+              print(Color.green.name);
+              print(Color.blue.name);
+              print(Color.red.index);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('green\nblue\n0\n'));
+    });
+
+    test('Enum with methods and fields', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            enum Planet {
+              earth(5), mars(6);
+              final int id;
+              const Planet(this.id);
+              int doubled() => id * 2;
+            }
+            void main() {
+              print(Planet.mars.doubled());
+              print(Planet.earth.id);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('12\n5\n'));
+    });
   });
 }

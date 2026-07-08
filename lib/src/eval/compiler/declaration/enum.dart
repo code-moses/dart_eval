@@ -54,6 +54,14 @@ void compileEnumDeclaration(
   ctx.pushOp(Return.make(1), Return.LEN);
   ctx.instanceDeclarationPositions[ctx.library]![clsName]![0]['index'] = pos;
   i++;
+
+  // The enum's constant name is stored at field index 1 by the generated
+  // constructor; expose it through the `name` getter (EnumName.name).
+  ctx.resetStack(position: 0);
+  final namePos = beginMethod(ctx, d, d.offset, '$clsName.name (get)');
+  ctx.pushOp(PushObjectPropertyImpl.make(0, 1), PushObjectPropertyImpl.length);
+  ctx.pushOp(Return.make(1), Return.LEN);
+  ctx.instanceDeclarationPositions[ctx.library]![clsName]![0]['name'] = namePos;
   i++;
 
   for (final m in <ClassMember>[...fields, ...methods, ...constructors]) {
@@ -90,7 +98,7 @@ void compileEnumDeclaration(
         ctx.topLevelDeclarationsMap[offset.file]![offset.name ?? '$clsName.'];
 
     final vIndex = BuiltinValue(intval: idx).push(ctx).boxIfNeeded(ctx);
-    final vName = BuiltinValue(stringval: cName).push(ctx);
+    final vName = BuiltinValue(stringval: cName).push(ctx).boxIfNeeded(ctx);
 
     ctx.pushOp(PushArg.make(vIndex.scopeFrameOffset), PushArg.LEN);
     ctx.pushOp(PushArg.make(vName.scopeFrameOffset), PushArg.LEN);

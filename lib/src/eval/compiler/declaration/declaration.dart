@@ -25,7 +25,7 @@ int? compileDeclaration(
   } else if (d is EnumDeclaration) {
     compileEnumDeclaration(ctx, d);
   } else if (d is MethodDeclaration) {
-    return compileMethodDeclaration(d, ctx, parent as ClassDeclaration);
+    return compileMethodDeclaration(d, ctx, parent!);
   } else if (d is FunctionDeclaration) {
     compileFunctionDeclaration(d, ctx);
   } else if (d is FieldDeclaration) {
