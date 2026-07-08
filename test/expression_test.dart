@@ -126,7 +126,10 @@ void main() {
         },
       });
 
-      expect(runtime.executeLib('package:eval_test/main.dart', 'main'), $num<num>(6));
+      expect(
+        runtime.executeLib('package:eval_test/main.dart', 'main'),
+        $num<num>(6),
+      );
     });
 
     test('Null coalescing operator', () {
@@ -560,6 +563,50 @@ void main() {
       }, prints('big\nbig\n'));
     });
 
+    test('Ternary with unboxed local in a branch', () {
+      // A branch that references an unboxed local must box it on both paths;
+      // regression for the branch that skipped the box because the other
+      // branch had already boxed the local's slot in place.
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            void main() {
+              int x = -4;
+              print(x > 0 ? x : -x);
+              print(x > 0 ? x : x);
+              int y = 7;
+              print(y > 0 ? y : -y);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('4\n-4\n7\n'));
+    });
+
+    test('Ternary returning class instances', () {
+      // Both branches produce a boxed instance; regression for the result
+      // variable being dragged back to an unboxed placeholder state.
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            class Box { final int v; Box(this.v); }
+            void main() {
+              final flag = false;
+              final b = flag ? Box(1) : Box(2);
+              print(b.v);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('2\n'));
+    });
+
     test('String interpolation of null values', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {
@@ -690,7 +737,10 @@ void main() {
         },
       });
 
-      expect(runtime.executeLib('package:example/main.dart', 'main', [true])?.$value, 'utf8');
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main', [true])?.$value,
+        'utf8',
+      );
     });
 
     test('Null assertion', () {
@@ -710,7 +760,10 @@ void main() {
         },
       });
 
-      expect(() => runtime.executeLib('package:example/main.dart', 'main'), prints('1\n'));
+      expect(
+        () => runtime.executeLib('package:example/main.dart', 'main'),
+        prints('1\n'),
+      );
     });
 
     test('Short-circuiting logical operators', () {
@@ -754,7 +807,10 @@ void main() {
         },
       });
 
-      expect(() => runtime.executeLib('package:example/main.dart', 'main'), prints('true\n'));
+      expect(
+        () => runtime.executeLib('package:example/main.dart', 'main'),
+        prints('true\n'),
+      );
     });
   });
 }

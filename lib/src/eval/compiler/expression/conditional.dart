@@ -18,9 +18,11 @@ Variable compileConditionalExpression(
   TypeRef? boundType,
 ]) {
   // The name must be unique so that nested conditional expressions don't
-  // shadow each other's result variable
+  // shadow each other's result variable. Initialize it as a *boxed* null:
+  // both branches store a boxed value, so a boxed placeholder keeps the
+  // result variable's boxing state continuous across the branch merge.
   final resultName = '#conditional${ctx.out.length}';
-  ctx.setLocal(resultName, BuiltinValue().push(ctx));
+  ctx.setLocal(resultName, BuiltinValue().push(ctx).boxIfNeeded(ctx));
   final vRef = IdentifierReference(null, resultName);
   final types = <TypeRef>{?boundType};
 
@@ -57,7 +59,6 @@ Variable compileConditionalExpression(
       vRef.setValue(ctx, v);
       return StatementInfo(-1);
     },
-    resolveStateToThen: true,
     source: e,
   );
 
