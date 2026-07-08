@@ -1,6 +1,8 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/pattern.dart';
 import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/statement/statement.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
@@ -11,10 +13,29 @@ StatementInfo compileIfStatement(
   AlwaysReturnType? expectedReturnType,
 ) {
   final elseStatement = s.elseStatement;
+  final caseClause = s.caseClause;
   return macroBranch(
     ctx,
     expectedReturnType,
-    condition: (ctx) => compileExpression(s.expression, ctx),
+    condition: (ctx) {
+      if (caseClause == null) {
+        return compileExpression(s.expression, ctx);
+      }
+      // if (value case pattern when guard): match the pattern, binding any
+      // pattern variables as locals visible in the then-branch
+      final value = compileExpression(s.expression, ctx).boxIfNeeded(ctx);
+      final matches = patternMatchAndBind(
+        ctx,
+        caseClause.guardedPattern.pattern,
+        value,
+      );
+      final guard = caseClause.guardedPattern.whenClause;
+      if (guard != null) {
+        final guardExpr = compileExpression(guard.expression, ctx);
+        return matches.invoke(ctx, '&&', [guardExpr]).result;
+      }
+      return matches;
+    },
     thenBranch: (ctx, expectedReturnType) =>
         compileStatement(s.thenStatement, expectedReturnType, ctx),
     elseBranch: elseStatement == null

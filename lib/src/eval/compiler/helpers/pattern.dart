@@ -162,10 +162,22 @@ Variable patternMatchAndBind(
             pattern,
           ));
     case ListPattern pat:
-      if (pat.elements.isEmpty) {
-        return BuiltinValue(boolval: true).push(ctx);
+      if (pat.elements.any((e) => e is RestPatternElement)) {
+        throw CompileError(
+          'Rest elements (...) in list patterns are not yet supported',
+          pattern,
+        );
       }
-      Variable? result;
+      // A list pattern only matches a list of exactly the pattern's length.
+      // Check the length first so a length mismatch fails the match instead
+      // of binding against out-of-range or extra elements. Box the collection
+      // so the `length` property access works; IndexedReference below unboxes
+      // as needed for element access.
+      V = V.boxIfNeeded(ctx);
+      final length = V.getProperty(ctx, 'length');
+      Variable result = length.invoke(ctx, '==', [
+        BuiltinValue(intval: pat.elements.length).push(ctx),
+      ]).result;
       for (var i = 0; i < pat.elements.length; i++) {
         final element = pat.elements[i];
         final listEl = IndexedReference(
@@ -178,17 +190,9 @@ Variable patternMatchAndBind(
           listEl,
           patternContext: patternContext,
         );
-        if (result == null) {
-          result = elementResult;
-        } else {
-          result = result.invoke(ctx, '&&', [elementResult]).result;
-        }
+        result = result.invoke(ctx, '&&', [elementResult]).result;
       }
-      return result ??
-          (throw CompileError(
-            'List pattern matching failed, no elements matched',
-            pattern,
-          ));
+      return result;
     case VariablePattern pat:
       final variableName = pat.name.lexeme;
       final declare =

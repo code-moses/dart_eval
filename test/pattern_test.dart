@@ -192,4 +192,84 @@ void main() {
       );
     });
   });
+
+  group('If-case pattern tests', () {
+    late Compiler compiler;
+
+    setUp(() {
+      compiler = Compiler();
+    });
+
+    test('If-case with list pattern binding', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              final x = [1, 2];
+              if (x case [var a, var b]) return a + b;
+              return -1;
+            }
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 3);
+    });
+
+    test('If-case with guard and else', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            String classify(int x) {
+              if (x case int n when n > 3) return 'big:\$n';
+              else return 'small';
+            }
+            void main() {
+              print(classify(5));
+              print(classify(2));
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('big:5\nsmall\n'));
+    });
+
+    test('If-case with record and constant patterns', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              final p = (3, 4);
+              if (p case (var a, var b)) print(a * b);
+              final t = 'user';
+              if (t case 'user') print('is-user');
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('12\nis-user\n'));
+    });
+
+    test('If-case that does not match falls through', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              final x = [1, 2, 3];
+              if (x case [var a, var b]) return a + b;
+              return -1;
+            }
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), -1);
+    });
+  });
 }
