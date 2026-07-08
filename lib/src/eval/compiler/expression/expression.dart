@@ -7,6 +7,7 @@ import 'package:dart_eval/src/eval/compiler/expression/await.dart';
 import 'package:dart_eval/src/eval/compiler/expression/binary.dart';
 import 'package:dart_eval/src/eval/compiler/expression/cascade.dart';
 import 'package:dart_eval/src/eval/compiler/expression/conditional.dart';
+import 'package:dart_eval/src/eval/compiler/expression/switch_expression.dart';
 import 'package:dart_eval/src/eval/compiler/expression/funcexpr_invocation.dart';
 import 'package:dart_eval/src/eval/compiler/expression/function_reference.dart';
 import 'package:dart_eval/src/eval/compiler/expression/function.dart';
@@ -69,6 +70,8 @@ Variable compileExpression(
     return compileThrowExpression(ctx, e);
   } else if (e is ConditionalExpression) {
     return compileConditionalExpression(ctx, e);
+  } else if (e is SwitchExpression) {
+    return compileSwitchExpression(ctx, e);
   } else if (e is IsExpression) {
     return compileIsExpression(e, ctx);
   } else if (e is CascadeExpression) {

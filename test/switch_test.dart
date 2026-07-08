@@ -546,4 +546,140 @@ void main() {
       );
     });
   });
+
+  group('Switch expression tests', () {
+    late Compiler compiler;
+
+    setUp(() {
+      compiler = Compiler();
+    });
+
+    test('Basic switch expression with constant cases', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              for (final x in [1, 2, 3]) {
+                print(switch (x) { 1 => 'one', 2 => 'two', _ => 'other' });
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('one\ntwo\nother\n'));
+    });
+
+    test('Switch expression with guard and variable binding', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            String classify(int x) => switch (x) {
+              int n when n > 100 => 'huge',
+              int n when n > 10 => 'big:\$n',
+              _ => 'small',
+            };
+            void main() {
+              print(classify(150));
+              print(classify(15));
+              print(classify(5));
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('huge\nbig:15\nsmall\n'));
+    });
+
+    test('Switch expression with list and record patterns', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              final list = [1, 2, 3];
+              print(switch (list) {
+                [var a, _, var c] => a + c,
+                _ => 0,
+              });
+              final pair = (1, 2);
+              print(switch (pair) {
+                (0, _) => 'zero',
+                (var a, var b) => 'sum:\${a + b}',
+              });
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('4\nsum:3\n'));
+    });
+
+    test('Switch expression on enum', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            enum Color { red, green, blue }
+            String letter(Color c) => switch (c) {
+              Color.red => 'r',
+              Color.green => 'g',
+              Color.blue => 'b',
+            };
+            void main() {
+              print(letter(Color.red));
+              print(letter(Color.green));
+              print(letter(Color.blue));
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('r\ng\nb\n'));
+    });
+
+    test('Nested switch expression and use as argument', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int f(int v) => v * 2;
+            int main() {
+              final x = 1, y = 2;
+              final label = switch (x) {
+                1 => switch (y) { 2 => 10, _ => 20 },
+                _ => 0,
+              };
+              return f(label) + f(switch (x) { 1 => 3, _ => 0 });
+            }
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 26);
+    });
+
+    test('Switch expression result assigned to typed int variable', () {
+      // Regression: a boxed expression result assigned to an unboxed-across-
+      // boundaries type must be unboxed before storage.
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            int main() {
+              final s = 'b';
+              final int r = switch (s) { 'a' => 1, 'b' => 2, _ => 0 };
+              return r + 100;
+            }
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 102);
+    });
+  });
 }
