@@ -70,18 +70,11 @@ StatementInfo _compileSwitchCases(
         final caseVar = compileExpression(currentCase.expression, ctx);
         return switchExpr.invoke(ctx, '==', [caseVar]).result;
       } else if (currentCase is SwitchPatternCase) {
-        final matches = patternMatchAndBind(
+        return patternMatchAndBindGuarded(
           ctx,
-          currentCase.guardedPattern.pattern,
+          currentCase.guardedPattern,
           switchExpr,
         );
-        final guard = currentCase.guardedPattern.whenClause;
-        if (guard != null) {
-          // If there's a guard, we need to compile it and check if it matches
-          final guardExpr = compileExpression(guard.expression, ctx);
-          return matches.invoke(ctx, '&&', [guardExpr]).result;
-        }
-        return matches;
       } else {
         throw CompileError(
           'Unsupported switch case type: ${currentCase.runtimeType}',

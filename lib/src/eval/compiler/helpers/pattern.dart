@@ -7,7 +7,9 @@ import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/binary.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
+import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
+import 'package:dart_eval/src/eval/compiler/statement/statement.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
 import 'package:dart_eval/src/eval/compiler/variable.dart';
 import 'package:dart_eval/src/eval/runtime/runtime.dart';
@@ -129,6 +131,47 @@ TypeRef patternTypeBound(
   }
 }
 
+/// Matches [guardedPattern]'s pattern against [V], binding any pattern
+/// variables, and applies the optional `when` guard with proper
+/// short-circuiting: the guard is only evaluated when the pattern matched, so
+/// pattern-bound variables are never used before the match succeeds (e.g. a
+/// promoted `int n` guard is not run against a non-int subject).
+Variable patternMatchAndBindGuarded(
+  CompilerContext ctx,
+  GuardedPattern guardedPattern,
+  Variable V, {
+  PatternBindContext patternContext = PatternBindContext.none,
+}) {
+  final matches = patternMatchAndBind(
+    ctx,
+    guardedPattern.pattern,
+    V,
+    patternContext: patternContext,
+  );
+  final guard = guardedPattern.whenClause;
+  if (guard == null) {
+    return matches;
+  }
+
+  // Evaluate the guard only when the pattern matched. Store the outcome in a
+  // result variable defaulting to false, so a non-match skips the guard ops.
+  final resultName = '#guard${ctx.out.length}';
+  ctx.setLocal(resultName, BuiltinValue(boolval: false).push(ctx));
+  final vRef = IdentifierReference(null, resultName);
+  macroBranch(
+    ctx,
+    null,
+    condition: (ctx) => matches,
+    thenBranch: (ctx, rt) {
+      final guardResult = compileExpression(guard.expression, ctx);
+      vRef.setValue(ctx, guardResult);
+      return StatementInfo(-1);
+    },
+    source: guard,
+  );
+  return vRef.getValue(ctx).updated(ctx);
+}
+
 Variable patternMatchAndBind(
   CompilerContext ctx,
   ListPatternElement pattern,
@@ -211,12 +254,20 @@ Variable patternMatchAndBind(
           (pat is DeclaredVariablePattern &&
               pat.keyword != null &&
               pat.keyword!.keyword == Keyword.FINAL);
+      // A typed variable pattern (e.g. `int n`) binds the variable at the
+      // pattern's declared type, promoting it past the subject's static type
+      // so that e.g. `if (o case int n) n + 1` works. The runtime type test
+      // below guarantees the value matches that type.
+      final declaredType = (pat is DeclaredVariablePattern && pat.type != null)
+          ? TypeRef.fromAnnotation(ctx, ctx.library, pat.type!)
+          : null;
       // If the variable is already in scope, we need to copy it to a new stack slot
       if (V.name != null) {
         if (!(V.type.isUnboxedAcrossFunctionBoundaries)) {
           V = V.boxIfNeeded(ctx);
         }
-        var v = Variable.alloc(ctx, V.type, isFinal: isFinal);
+        final boundType = (declaredType ?? V.type).copyWith(boxed: V.boxed);
+        var v = Variable.alloc(ctx, boundType, isFinal: isFinal);
         ctx.pushOp(PushNull.make(), PushNull.LEN);
         ctx.pushOp(
           CopyValue.make(v.scopeFrameOffset, V.scopeFrameOffset),
@@ -224,7 +275,13 @@ Variable patternMatchAndBind(
         );
         ctx.setLocal(variableName, v);
       } else {
-        ctx.setLocal(variableName, V.copyWith(isFinal: isFinal));
+        ctx.setLocal(
+          variableName,
+          V.copyWith(
+            type: (declaredType ?? V.type).copyWith(boxed: V.boxed),
+            isFinal: isFinal,
+          ),
+        );
       }
 
       if (pat is DeclaredVariablePattern) {

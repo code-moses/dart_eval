@@ -271,5 +271,76 @@ void main() {
 
       expect(runtime.executeLib('package:example/main.dart', 'main'), -1);
     });
+
+    test('Typed variable pattern promotes the bound variable', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              Object o = 7;
+              if (o case int n) print(n + 1);
+              Object s = 'hello';
+              if (s case String str) print(str.length);
+              Object r = (1, 'two');
+              if (r case (int a, String b)) print(a + b.length);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('8\n5\n4\n'));
+    });
+
+    test('Typed pattern promotion in switch expression', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            String describe(Object o) => switch (o) {
+              int n when n > 10 => 'big-int:\${n + 1}',
+              int n => 'int:\${n + 1}',
+              double d => 'double:\${d + 0.5}',
+              String s => 'string:\${s.length}',
+              _ => 'other',
+            };
+            void main() {
+              print(describe(5));
+              print(describe(50));
+              print(describe(2.0));
+              print(describe('abc'));
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('int:6\nbig-int:51\ndouble:2.5\nstring:3\n'));
+    });
+
+    test('Pattern guard is not evaluated when the pattern does not match', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              var counter = 0;
+              int bump() { counter++; return 100; }
+              Object o = 'x';
+              // int n binds nothing (o is a String), so the guard - which
+              // would misuse the binding and call bump() - must be skipped
+              if (o case int n when n > bump()) {
+                print('matched');
+              }
+              print(counter);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('0\n'));
+    });
   });
 }

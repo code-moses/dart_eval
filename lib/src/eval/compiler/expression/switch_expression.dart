@@ -3,7 +3,6 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
-import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/pattern.dart';
 import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
@@ -60,19 +59,11 @@ void _compileCase(
   macroBranch(
     ctx,
     null,
-    condition: (ctx) {
-      final matches = patternMatchAndBind(
-        ctx,
-        currentCase.guardedPattern.pattern,
-        switchValue,
-      );
-      final guard = currentCase.guardedPattern.whenClause;
-      if (guard != null) {
-        final guardExpr = compileExpression(guard.expression, ctx);
-        return matches.invoke(ctx, '&&', [guardExpr]).result;
-      }
-      return matches;
-    },
+    condition: (ctx) => patternMatchAndBindGuarded(
+      ctx,
+      currentCase.guardedPattern,
+      switchValue,
+    ),
     thenBranch: (ctx, rt) {
       final v = compileExpression(
         currentCase.expression,
