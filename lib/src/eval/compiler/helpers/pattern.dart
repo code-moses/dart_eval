@@ -6,6 +6,7 @@ import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/binary.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/equality.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
@@ -172,6 +173,55 @@ Variable patternMatchAndBindGuarded(
   return vRef.getValue(ctx).updated(ctx);
 }
 
+/// Reads [prop] from [V], evaluating to null when [V] is null instead of
+/// throwing. Used so structural pattern matching against a null subject (e.g.
+/// an out-of-range element of a shorter list) fails the match cleanly rather
+/// than crashing on a property access.
+Variable _nullSafeGetProperty(CompilerContext ctx, Variable V, String prop) {
+  V = V.boxIfNeeded(ctx);
+  var out = BuiltinValue().push(ctx).boxIfNeeded(ctx);
+  macroBranch(
+    ctx,
+    null,
+    condition: (ctx) => checkNotNull(ctx, V),
+    thenBranch: (ctx, rt) {
+      final val = V.getProperty(ctx, prop).boxIfNeeded(ctx);
+      out = out.copyWith(
+        type: val.type.copyWith(nullable: true),
+        concreteTypes: [],
+      );
+      ctx.pushOp(
+        CopyValue.make(out.scopeFrameOffset, val.scopeFrameOffset),
+        CopyValue.LEN,
+      );
+      return StatementInfo(-1);
+    },
+  );
+  return out;
+}
+
+/// Returns the length of list [V], or -1 when [V] is null, as an unboxed int.
+/// Using -1 for null lets a length comparison (`==` or `>=`) fail the match
+/// without a null-comparison crash.
+Variable _listLengthOrNeg(CompilerContext ctx, Variable V) {
+  V = V.boxIfNeeded(ctx);
+  final out = BuiltinValue(intval: -1).push(ctx);
+  macroBranch(
+    ctx,
+    null,
+    condition: (ctx) => checkNotNull(ctx, V),
+    thenBranch: (ctx, rt) {
+      final len = V.getProperty(ctx, 'length').unboxIfNeeded(ctx);
+      ctx.pushOp(
+        CopyValue.make(out.scopeFrameOffset, len.scopeFrameOffset),
+        CopyValue.LEN,
+      );
+      return StatementInfo(-1);
+    },
+  );
+  return out;
+}
+
 Variable patternMatchAndBind(
   CompilerContext ctx,
   ListPatternElement pattern,
@@ -187,10 +237,12 @@ Variable patternMatchAndBind(
       Variable? result;
       for (final field in pat.fields) {
         final fieldName = field.effectiveName ?? '\$${positionalFields++}';
+        // Null-safe field access so a record pattern matched against a null
+        // subject (e.g. an out-of-range list element) fails cleanly
         final fieldResult = patternMatchAndBind(
           ctx,
           field.pattern,
-          V.getProperty(ctx, fieldName),
+          _nullSafeGetProperty(ctx, V, fieldName),
           patternContext: patternContext,
         );
         if (result == null) {
@@ -205,38 +257,147 @@ Variable patternMatchAndBind(
             pattern,
           ));
     case ListPattern pat:
-      if (pat.elements.any((e) => e is RestPatternElement)) {
+      // A list pattern with a rest element (`...` / `...rest`) matches lists of
+      // length >= (elements before + after the rest); a plain list pattern
+      // matches lists of exactly its length. Elements before the rest match
+      // from the start, elements after it from the end, and the rest binds the
+      // middle sublist. At most one rest element is allowed.
+      final elements = pat.elements;
+      final restIdx = elements.indexWhere((e) => e is RestPatternElement);
+      final hasRest = restIdx != -1;
+      if (hasRest &&
+          elements.skip(restIdx + 1).any((e) => e is RestPatternElement)) {
         throw CompileError(
-          'Rest elements (...) in list patterns are not yet supported',
+          'A list pattern can have at most one rest element',
           pattern,
         );
       }
-      // A list pattern only matches a list of exactly the pattern's length.
-      // Check the length first so a length mismatch fails the match instead
-      // of binding against out-of-range or extra elements. Box the collection
-      // so the `length` property access works.
+      final before = hasRest ? elements.sublist(0, restIdx) : elements;
+      final after = hasRest
+          ? elements.sublist(restIdx + 1)
+          : const <ListPatternElement>[];
+      final restPattern = hasRest
+          ? (elements[restIdx] as RestPatternElement).pattern
+          : null;
+      final minLen = before.length + after.length;
+
+      // Compute the length safely (-1 when the subject is null) so a null or
+      // wrong-length subject fails the match cleanly instead of throwing.
       V = V.boxIfNeeded(ctx);
-      final length = V.getProperty(ctx, 'length');
-      Variable result = length.invoke(ctx, '==', [
-        BuiltinValue(intval: pat.elements.length).push(ctx),
-      ]).result;
-      // Unbox once and index off the stable unboxed handle: reusing the boxed
-      // V would make each element access re-emit an Unbox, double-unboxing the
-      // slot at runtime (breaks nested list patterns).
-      final unboxedV = V.unboxIfNeeded(ctx);
-      for (var i = 0; i < pat.elements.length; i++) {
-        final element = pat.elements[i];
-        final listEl = IndexedReference(
-          unboxedV,
-          BuiltinValue(intval: i).push(ctx),
-        ).getValue(ctx);
-        final elementResult = patternMatchAndBind(
+      final length = _listLengthOrNeg(ctx, V);
+      final lengthOk =
+          (hasRest
+                  ? length.invoke(ctx, '>=', [
+                      BuiltinValue(intval: minLen).push(ctx),
+                    ])
+                  : length.invoke(ctx, '==', [
+                      BuiltinValue(intval: minLen).push(ctx),
+                    ]))
+              .result
+              .unboxIfNeeded(ctx);
+
+      // Result slots (default null) that survive to the matching below. The
+      // extraction is gated on the length matching, so indices are only read
+      // when the subject is non-null and long enough — never out of range.
+      final beforeSlots = [
+        for (var i = 0; i < before.length; i++)
+          BuiltinValue().push(ctx).boxIfNeeded(ctx),
+      ];
+      final afterSlots = [
+        for (var j = 0; j < after.length; j++)
+          BuiltinValue().push(ctx).boxIfNeeded(ctx),
+      ];
+      var restSlot = restPattern != null
+          ? BuiltinValue().push(ctx).boxIfNeeded(ctx)
+          : null;
+
+      // Copies an already-boxed list element into [slot], preserving its type
+      // so a nested pattern can index it via IndexList rather than a dynamic
+      // invoke.
+      Variable storeElement(Variable slot, Variable el) {
+        final out = slot.copyWith(
+          type: el.type.copyWith(nullable: true),
+          concreteTypes: [],
+        );
+        ctx.pushOp(
+          CopyValue.make(out.scopeFrameOffset, el.scopeFrameOffset),
+          CopyValue.LEN,
+        );
+        return out;
+      }
+
+      macroBranch(
+        ctx,
+        null,
+        condition: (ctx) => lengthOk,
+        thenBranch: (ctx, rt) {
+          // Bind the rest sublist first, while V is still boxed (sublist is a
+          // method call and needs a boxed receiver).
+          if (restPattern != null) {
+            final start = BuiltinValue(intval: before.length).push(ctx);
+            final end = after.isEmpty
+                ? length
+                : length.invoke(ctx, '-', [
+                    BuiltinValue(intval: after.length).push(ctx),
+                  ]).result;
+            final sub = V
+                .invoke(ctx, 'sublist', [start, end])
+                .result
+                .boxIfNeeded(ctx);
+            restSlot = storeElement(restSlot!, sub);
+          }
+          // Unbox once so element access indexes a raw list without re-emitting
+          // an Unbox per element (which would double-unbox nested sublists).
+          final rawV = V.unboxIfNeeded(ctx);
+          for (var i = 0; i < before.length; i++) {
+            final el = IndexedReference(
+              rawV,
+              BuiltinValue(intval: i).push(ctx),
+            ).getValue(ctx).boxIfNeeded(ctx);
+            beforeSlots[i] = storeElement(beforeSlots[i], el);
+          }
+          for (var j = 0; j < after.length; j++) {
+            // index = length - (after.length - j), counting from the end
+            final idx = length.invoke(ctx, '-', [
+              BuiltinValue(intval: after.length - j).push(ctx),
+            ]).result;
+            final el = IndexedReference(
+              rawV,
+              idx,
+            ).getValue(ctx).boxIfNeeded(ctx);
+            afterSlots[j] = storeElement(afterSlots[j], el);
+          }
+          return StatementInfo(-1);
+        },
+      );
+
+      Variable result = lengthOk;
+      for (var i = 0; i < before.length; i++) {
+        final m = patternMatchAndBind(
           ctx,
-          element,
-          listEl,
+          before[i],
+          beforeSlots[i],
           patternContext: patternContext,
         );
-        result = result.invoke(ctx, '&&', [elementResult]).result;
+        result = result.invoke(ctx, '&&', [m]).result;
+      }
+      for (var j = 0; j < after.length; j++) {
+        final m = patternMatchAndBind(
+          ctx,
+          after[j],
+          afterSlots[j],
+          patternContext: patternContext,
+        );
+        result = result.invoke(ctx, '&&', [m]).result;
+      }
+      if (restPattern != null) {
+        final m = patternMatchAndBind(
+          ctx,
+          restPattern,
+          restSlot!,
+          patternContext: patternContext,
+        );
+        result = result.invoke(ctx, '&&', [m]).result;
       }
       return result;
     case VariablePattern pat:

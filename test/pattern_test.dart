@@ -373,4 +373,107 @@ void main() {
       }, prints('0\n'));
     });
   });
+
+  group('List pattern length and rest tests', () {
+    late Compiler compiler;
+
+    setUp(() {
+      compiler = Compiler();
+    });
+
+    test('Wrong-length and null subjects fail cleanly', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            String describe(List<int>? x) {
+              if (x case [var a, var b]) return 'two:\${a + b}';
+              return 'no';
+            }
+            void main() {
+              print(describe([1, 2]));
+              print(describe([1]));       // too short
+              print(describe([1, 2, 3])); // too long
+              print(describe(<int>[]));   // empty
+              print(describe(null));      // null subject
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('two:3\nno\nno\nno\nno\n'));
+    });
+
+    test('Nested list patterns with wrong inner length fail cleanly', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              final ok = [[1, 2], [3, 4]];
+              if (ok case [[var a, _], [_, var d]]) print(a + d);
+              final ragged = [[1], [3, 4]];
+              if (ragged case [[var a, var b], [var c, var d]]) {
+                print(a + b + c + d);
+              } else {
+                print('no-match');
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('5\nno-match\n'));
+    });
+
+    test('Rest elements in list patterns', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              final x = [1, 2, 3, 4, 5];
+              if (x case [var a, ...]) print(a);
+              if (x case [..., var last]) print(last);
+              if (x case [var first, ..., var lastEl]) print(first + lastEl);
+              if (x case [_, ...var mid, _]) print(mid.join(","));
+              // too short for the required before+after elements
+              final short = [1];
+              if (short case [var a, ..., var b]) {
+                print(a + b);
+              } else {
+                print('too-short');
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('1\n5\n6\n2,3,4\ntoo-short\n'));
+    });
+
+    test('Named rest binds the whole list and empty middles', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            void main() {
+              final x = [1, 2, 3];
+              if (x case [...var all]) print(all.join(","));
+              final pair = [1, 2];
+              if (pair case [var a, ...var mid, var b]) {
+                print('\$a-\${mid.length}-\$b');
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('1,2,3\n1-0-2\n'));
+    });
+  });
 }
