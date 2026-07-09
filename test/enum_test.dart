@@ -175,5 +175,50 @@ void main() {
         runtime.executeLib('package:example/main.dart', 'main');
       }, prints('12\n5\n'));
     });
+
+    test('Enum values list', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            enum Color { red, green, blue }
+            void main() {
+              print(Color.values.length);
+              print(Color.values[1].name);
+              print(Color.values.map((c) => c.name).join(","));
+              var s = '';
+              for (final c in Color.values) { s += '\${c.index}'; }
+              print(s);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('3\ngreen\nred,green,blue\n012\n'));
+    });
+
+    test('Enum default toString and override', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            enum Color { red, green, blue }
+            enum Shape {
+              circle, square;
+              String toString() => 'a shape';
+            }
+            void main() {
+              print(Color.red.toString());
+              print('picked \${Color.green}');
+              print(Shape.circle.toString());
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('Color.red\npicked Color.green\na shape\n'));
+    });
   });
 }

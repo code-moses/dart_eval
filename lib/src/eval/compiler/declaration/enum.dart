@@ -1,10 +1,12 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/constructor.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/declaration.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/argument_list.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
 import 'package:dart_eval/src/eval/compiler/scope.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
@@ -130,6 +132,60 @@ void compileEnumDeclaration(
     ctx.runtimeGlobalInitializerMap[index] = pos;
     ctx.pushOp(Return.make(V.scopeFrameOffset), Return.LEN);
     idx++;
+  }
+
+  // Generate the implicit static `values` list ([const0, const1, ...]) as a
+  // lazily-initialized global.
+  final valuesName = '$clsName.values';
+  final listType = CoreTypes.list
+      .ref(ctx)
+      .copyWith(specifiedTypeArgs: [type.copyWith(boxed: true)]);
+  ctx.resetStack(position: 0);
+  final valuesPos = beginMethod(ctx, d, d.offset, '$clsName.values*i');
+  ctx.pushOp(PushList.make(), PushList.LEN);
+  // PushList creates a raw list, so track it unboxed; it is boxed below.
+  final listVar = Variable.alloc(ctx, listType.copyWith(boxed: false));
+  for (final constant in d.body.constants) {
+    final cIndex =
+        ctx.topLevelGlobalIndices[ctx
+            .library]!['$clsName.${constant.name.lexeme}']!;
+    ctx.pushOp(LoadGlobal.make(cIndex), LoadGlobal.LEN);
+    ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+    final elem = Variable.alloc(ctx, type);
+    ctx.pushOp(
+      ListAppend.make(listVar.scopeFrameOffset, elem.scopeFrameOffset),
+      ListAppend.LEN,
+    );
+  }
+  // Box the list so the stored global is a $List and property/method access
+  // (length, map, ...) works when the values getter is used.
+  final boxedList = listVar.boxIfNeeded(ctx);
+  final valuesIndex = ctx.topLevelGlobalIndices[ctx.library]![valuesName]!;
+  ctx.pushOp(
+    SetGlobal.make(valuesIndex, boxedList.scopeFrameOffset),
+    SetGlobal.LEN,
+  );
+  // The stored global is a boxed $List, so register the getter's type as
+  // boxed to match.
+  ctx.topLevelVariableInferredTypes[ctx.library]![valuesName] = listType
+      .copyWith(boxed: true);
+  ctx.topLevelGlobalInitializers[ctx.library]![valuesName] = valuesPos;
+  ctx.runtimeGlobalInitializerMap[valuesIndex] = valuesPos;
+  ctx.pushOp(Return.make(boxedList.scopeFrameOffset), Return.LEN);
+
+  // Generate a default toString returning "EnumName.constantName", unless the
+  // enum declares its own.
+  final hasUserToString = methods.any((m) => m.name.lexeme == 'toString');
+  if (!hasUserToString) {
+    ctx.resetStack(position: 1);
+    final toStringPos = beginMethod(ctx, d, d.offset, '$clsName.toString()');
+    final thisVar = Variable(0, type);
+    final nameVal = thisVar.getProperty(ctx, 'name');
+    final prefix = BuiltinValue(stringval: '$clsName.').push(ctx);
+    final str = prefix.invoke(ctx, '+', [nameVal]).result;
+    ctx.pushOp(Return.make(str.scopeFrameOffset), Return.LEN);
+    ctx.instanceDeclarationPositions[ctx.library]![clsName]![2]['toString'] =
+        toStringPos;
   }
 
   ctx.currentClass = null;

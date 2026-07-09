@@ -791,6 +791,10 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
             globalIndex;
       }
 
+      // Reserve a global for the implicit static `values` list.
+      _topLevelGlobalIndices[libraryIndex]!['$name.values'] =
+          _ctx.globalIndex++;
+
       for (var member in members) {
         if (member is MethodDeclaration) {
           var mName = member.name.lexeme;
