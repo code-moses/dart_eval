@@ -220,5 +220,27 @@ void main() {
         runtime.executeLib('package:example/main.dart', 'main');
       }, prints('Color.red\npicked Color.green\na shape\n'));
     });
+
+    test('Implicit name and index getters inside enum methods', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': r'''
+            enum Color {
+              red, green, blue;
+              String describe() => '$name is color number $index';
+              int get next => (index + 1) % 3;
+            }
+            void main() {
+              print(Color.green.describe());
+              print(Color.blue.next);
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('green is color number 1\n0\n'));
+    });
   });
 }

@@ -33,6 +33,24 @@ abstract class Reference {
 
 /// A [Reference] with a String identifier and optional target object. Accessing its value may, depending on state and
 /// context: access a local variable, access an instance field/method, or access a global variable/top-level function.
+/// Returns the static type of an enum's implicit `name` (String) or `index`
+/// (int) getter when [name] refers to one inside an enum body, or null
+/// otherwise. Lets a bare `name`/`index` inside an enum method resolve to the
+/// synthetic getter, which dispatches at runtime like any other instance
+/// getter.
+TypeRef? _enumImplicitGetterType(CompilerContext ctx, String name) {
+  if (ctx.currentClass is! EnumDeclaration) {
+    return null;
+  }
+  if (name == 'index') {
+    return CoreTypes.int.ref(ctx);
+  }
+  if (name == 'name') {
+    return CoreTypes.string.ref(ctx);
+  }
+  return null;
+}
+
 class IdentifierReference implements Reference {
   IdentifierReference(this.object, this.name);
 
@@ -77,6 +95,11 @@ class IdentifierReference implements Reference {
         final $type = instanceDeclaration.first;
         return TypeRef.lookupFieldType(ctx, $type, name, forSet: forSet) ??
             CoreTypes.dynamic.ref(ctx);
+      }
+
+      final enumGetterType = _enumImplicitGetterType(ctx, name);
+      if (enumGetterType != null) {
+        return enumGetterType;
       }
 
       final staticDeclaration = resolveStaticDeclaration(
@@ -447,6 +470,18 @@ class IdentifierReference implements Reference {
           TypeRef.lookupFieldType(ctx, $type, name, source: source) ??
               CoreTypes.dynamic.ref(ctx),
         );
+      }
+
+      final enumGetterType = _enumImplicitGetterType(ctx, name);
+      if (enumGetterType != null) {
+        final $this = ctx.lookupLocal('#this')!;
+        final op = PushObjectProperty.make(
+          $this.scopeFrameOffset,
+          ctx.constantPool.addOrGet(name),
+        );
+        ctx.pushOp(op, PushObjectProperty.len(op));
+        ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+        return Variable.alloc(ctx, enumGetterType);
       }
 
       final staticDeclaration = resolveStaticDeclaration(
