@@ -5,6 +5,7 @@ import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/class.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/constructor.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/enum.dart';
+import 'package:dart_eval/src/eval/compiler/declaration/extension.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/field.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/function.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/method.dart';
@@ -24,6 +25,8 @@ int? compileDeclaration(
     compileClassDeclaration(ctx, d);
   } else if (d is EnumDeclaration) {
     compileEnumDeclaration(ctx, d);
+  } else if (d is ExtensionDeclaration) {
+    compileExtensionDeclaration(ctx, d);
   } else if (d is MethodDeclaration) {
     return compileMethodDeclaration(d, ctx, parent!);
   } else if (d is FunctionDeclaration) {

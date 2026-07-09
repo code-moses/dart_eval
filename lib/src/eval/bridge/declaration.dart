@@ -45,6 +45,8 @@ class DeclarationOrBridge<T extends Declaration, R extends BridgeDeclaration> {
       return [declaration.namePart.toString()];
     } else if (declaration is FunctionDeclaration) {
       return [declaration.name.toString()];
+    } else if (declaration is ExtensionDeclaration) {
+      return [declaration.name?.lexeme ?? '#ext${declaration.offset}'];
     } else if (declaration is TopLevelVariableDeclaration) {
       /// Top-level variable declaration
       return declaration.variables.variables.map((v) => v.name.lexeme).toList();
@@ -117,6 +119,11 @@ class DeclarationOrBridge<T extends Declaration, R extends BridgeDeclaration> {
           final dName = declaration.name.toString();
 
           yield Pair(dName, d);
+        } else if (declaration is ExtensionDeclaration) {
+          yield Pair(
+            declaration.name?.lexeme ?? '#ext${declaration.offset}',
+            d,
+          );
         } else {
           throw CompileError('Unsupported!');
         }

@@ -3,6 +3,7 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/collection/list.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/declaration/extension.dart';
 import 'package:dart_eval/src/eval/compiler/expression/function.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
@@ -230,14 +231,25 @@ class Variable {
       ctx.pushOp(PushRuntimeType.make(scopeFrameOffset), PushRuntimeType.LEN);
       return Variable.alloc(ctx, CoreTypes.type.ref(ctx));
     }
+    final rawFieldType = TypeRef.lookupFieldType(
+      ctx,
+      type,
+      name,
+      source: source,
+    );
+    if (rawFieldType == null &&
+        type != CoreTypes.dynamic.ref(ctx) &&
+        ctx.extensions.isNotEmpty) {
+      // The property isn't declared on the receiver's type; if an extension
+      // provides a getter for it, dispatch to that instead of emitting a
+      // dynamic property access that would fail at runtime.
+      final ext = resolveExtensionMember(ctx, type, name, 0);
+      if (ext != null) {
+        return invokeExtensionGetter(ctx, this, ext);
+      }
+    }
     final fieldType =
-        TypeRef.lookupFieldType(
-          ctx,
-          type,
-          name,
-          source: source,
-        )?.resolveTypeChain(ctx) ??
-        CoreTypes.dynamic.ref(ctx);
+        rawFieldType?.resolveTypeChain(ctx) ?? CoreTypes.dynamic.ref(ctx);
     if (concreteTypes.length == 1) {
       // If the concrete type is known we can access the field directly by
       // its index

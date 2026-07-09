@@ -7,7 +7,7 @@ import 'package:dart_eval/src/eval/compiler/type.dart';
 import 'package:dart_eval/src/eval/compiler/variable.dart';
 
 Variable compileThisExpression(ThisExpression e, CompilerContext ctx) {
-  if (ctx.currentClass == null) {
+  if (ctx.currentClass == null && ctx.currentExtensionThis == null) {
     throw CompileError("Cannot use 'this' outside of a class context");
   }
   return ctx.lookupLocal('#this')!;

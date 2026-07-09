@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/declaration.dart';
+import 'package:dart_eval/src/eval/compiler/declaration/extension.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/field.dart';
 import 'package:dart_eval/src/eval/compiler/model/diagnostic_mode.dart';
 import 'package:dart_eval/src/eval/compiler/model/library.dart';
@@ -866,6 +867,29 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
         libraryIndex,
         declaration: declaration,
       );
+    } else if (declaration is ExtensionDeclaration) {
+      final extName = declaration.name?.lexeme ?? '#ext${declaration.offset}';
+      // Register the extension itself so it is compiled, and each instance
+      // member under a mangled key so resolved `receiver.member` accesses can
+      // dispatch to it as a top-level function.
+      _topLevelDeclarationsMap[libraryIndex]![extName] = DeclarationOrBridge(
+        libraryIndex,
+        declaration: declaration,
+      );
+      for (final member in declaration.body.members) {
+        if (member is MethodDeclaration && !member.isStatic) {
+          _topLevelDeclarationsMap[libraryIndex]![extensionMemberKey(
+            extName,
+            member,
+          )] = DeclarationOrBridge(
+            libraryIndex,
+            declaration: member,
+          );
+        }
+      }
+      _ctx.extensions.add(
+        CompiledExtension(libraryIndex, extName, declaration),
+      );
     } else {
       throw CompileError('Unsupported!');
     }
@@ -1313,6 +1337,10 @@ Map<Library, Map<String, DeclarationOrPrefix>> _resolveImportsAndExports(
         .where(
           (declaration) =>
               declaration.isBridge ||
+              // Extensions apply implicitly (they are never referenced by
+              // name), so tree-shaking can't see their use; always retain
+              // them in reachable libraries.
+              declaration.declaration is ExtensionDeclaration ||
               DeclarationOrBridge.nameOf(declaration).any(
                 (name) => {
                   ...?usedDeclarationsForLibrary[libraryIds[l]],

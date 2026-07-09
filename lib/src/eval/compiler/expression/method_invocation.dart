@@ -3,6 +3,7 @@ import 'package:analyzer/dart/ast/token.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/declaration/extension.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/function.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/argument_list.dart';
@@ -76,6 +77,21 @@ Variable compileMethodInvocation(
     }
     return _invokeWithTarget(ctx, L, e);
   }
+  // Inside an extension body, a bare call whose name is neither a local nor a
+  // visible top-level declaration is an implicit `this.method()` on the
+  // receiver. Local and top-level names still take precedence.
+  if (!isPrefix && ctx.currentExtensionThis != null) {
+    final mName = e.methodName.name;
+    final isTopLevel =
+        ctx.visibleDeclarations[ctx.library]?.containsKey(mName) ?? false;
+    if (!isTopLevel && ctx.lookupLocal(mName) == null) {
+      final $this = ctx.lookupLocal('#this');
+      if ($this != null) {
+        return _invokeWithTarget(ctx, $this, e);
+      }
+    }
+  }
+
   final method = isPrefix
       ? compilePrefixedIdentifier(
           (e.target as Identifier).name,
@@ -338,7 +354,17 @@ Variable _invokeWithTarget(
     dec0 = resolveStaticMethod(ctx, staticType, e.methodName.name);
     isStatic = true;
   } else if (L.type != CoreTypes.dynamic.ref(ctx)) {
-    dec0 = resolveInstanceMethod(ctx, L.type, e.methodName.name, e);
+    try {
+      dec0 = resolveInstanceMethod(ctx, L.type, e.methodName.name, e);
+    } on CompileError {
+      // The receiver's own type doesn't declare the method; fall back to an
+      // applicable extension method before surfacing the error.
+      final ext = resolveExtensionMember(ctx, L.type, e.methodName.name, 2);
+      if (ext == null) {
+        rethrow;
+      }
+      return _invokeExtensionMethod(ctx, L, ext, e);
+    }
     isStatic = false;
   } else {
     isStatic = false;
@@ -454,6 +480,36 @@ Variable _invokeWithTarget(
   );
 
   return v;
+}
+
+/// Invokes a resolved extension method as a static call, passing the receiver
+/// [L] as the first argument (the extension member's `#this`).
+Variable _invokeExtensionMethod(
+  CompilerContext ctx,
+  Variable L,
+  ResolvedExtensionMember ext,
+  MethodInvocation e,
+) {
+  final dec = ext.member;
+  final fpl = dec.parameters?.parameters ?? <FormalParameter>[];
+  // The receiver becomes the member's `#this` (arg 0) and must be boxed, like
+  // any method argument, so the callee sees a $Value.
+  compileArgumentList(
+    ctx,
+    e.argumentList,
+    ext.extension.library,
+    fpl,
+    dec,
+    before: [L.boxIfNeeded(ctx)],
+    source: e,
+  );
+
+  final offset = DeferredOrOffset(file: ext.extension.library, name: ext.key);
+  final loc = ctx.pushOp(Call.make(-1), Call.length);
+  ctx.offsetTracker.setOffset(loc, offset);
+  ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+
+  return Variable.alloc(ctx, extensionReturnType(ctx, ext));
 }
 
 DeclarationOrBridge<MethodDeclaration, BridgeMethodDef> resolveInstanceMethod(

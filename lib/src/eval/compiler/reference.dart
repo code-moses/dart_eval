@@ -516,6 +516,17 @@ class IdentifierReference implements Reference {
       }
     }
 
+    // Inside an extension body, a bare identifier that isn't a local or a
+    // visible top-level declaration resolves against the receiver (`this`),
+    // like `this.name`. Top-level declarations still take precedence.
+    if (ctx.currentExtensionThis != null &&
+        !(ctx.visibleDeclarations[ctx.library]?.containsKey(name) ?? false)) {
+      final $this = ctx.lookupLocal('#this');
+      if ($this != null) {
+        return $this.getProperty(ctx, name, source: source);
+      }
+    }
+
     final declaration =
         ctx.visibleDeclarations[ctx.library]![name] ??
         ctx.visibleDeclarations[ctx.library]![name.split('.')[0]] ??

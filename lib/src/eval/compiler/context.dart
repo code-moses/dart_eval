@@ -183,6 +183,11 @@ class CompilerContext with ScopeContext {
   int position = 0;
   Declaration? currentClass;
 
+  /// When compiling an extension member body, the receiver (`this`) type of the
+  /// enclosing extension, so bare identifiers and `this` resolve against it.
+  /// Null outside extension bodies.
+  TypeRef? currentExtensionThis;
+
   /// See [Compiler.softNullableCasts]: when enabled, a failed cast to a
   /// nullable type evaluates to null instead of throwing.
   bool softNullableCasts = false;
@@ -216,6 +221,11 @@ class CompilerContext with ScopeContext {
   Map<int, Map<String, int>> topLevelGlobalIndices = {};
   Map<int, Map<String, int>> topLevelGlobalInitializers = {};
   Map<int, Map<String, Map<String, int>>> enumValueIndices = {};
+
+  /// Script-defined `extension`s collected during scanning, used to resolve
+  /// `receiver.member` accesses that the receiver's own type doesn't provide.
+  final List<CompiledExtension> extensions = [];
+
   Map<int, int> runtimeGlobalInitializerMap = {};
   Map<int, Map<String, TypeRef>> topLevelVariableInferredTypes = {};
   Map<TypeRef, int> typeRefIndexMap = {};
@@ -438,4 +448,23 @@ class ContextSaveState with ScopeContext {
 
   @override
   int pushOp(EvcOp op, int length) => throw UnimplementedError();
+}
+
+/// A script-defined `extension` collected during scanning. Used to resolve a
+/// `receiver.member` access that the receiver's own type doesn't provide by
+/// dispatching to the extension member (compiled as a top-level function that
+/// takes the receiver as its first argument).
+class CompiledExtension {
+  CompiledExtension(this.library, this.name, this.declaration);
+
+  /// The library index the extension is declared in.
+  final int library;
+
+  /// The extension's name (synthetic for unnamed extensions).
+  final String name;
+
+  final ExtensionDeclaration declaration;
+
+  /// The resolved `on` type, cached lazily during resolution.
+  TypeRef? onType;
 }
