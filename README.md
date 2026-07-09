@@ -46,17 +46,23 @@
 >   ([#228](https://github.com/ethanblake4/dart_eval/issues/228))
 >
 > **New language support**
-> - Switch expressions (`switch (x) { 1 => 'a', _ => 'b' }`) with constant, list, record and
->   object patterns, `when` guards and variable binding, usable in any expression position
+> - Extension methods and getters (`extension StringExt on String { String shout() => ... }`),
+>   including bare/`this` member access inside bodies, cross-library use, and most-specific
+>   `on`-type resolution (instance members still take precedence)
+> - Switch expressions (`switch (x) { 1 => 'a', _ => 'b' }`) with constant, list, record, map
+>   and object patterns, `when` guards and variable binding, usable in any expression position
 > - If-case statements (`if (value case pattern when guard) ...`) with pattern variable binding
+> - Map patterns (`{'k': int v}`) and object patterns (`Point(x: 0, y: var y)`), in switches,
+>   if-case, and irrefutable declarations (`final Point(:x, :y) = p;`)
 > - Typed pattern variables promote (`if (o case int n) n + 1`); nested and mixed
 >   record/list patterns (`[[a, _], [_, d]]`); rest elements (`[first, ...rest, last]`)
 > - Null-aware index operator (`target?[index]`), including chained forms like `m?['a']?[1]`
 > - `String` `*` operator (`'ab' * 3`)
 > - Spread (`...`/`...?`), `if` and `for` elements in set and map literals, matching the
 >   existing support for list literals
-> - Script enums: implicit `name` getter, static `values` list, a default
->   `toString` (`EnumName.constant`), and instance methods/getters
+> - Script enums: implicit `name`/`index` getters (also as bare identifiers inside enum
+>   methods), static `values` list, a default `toString` (`EnumName.constant`), and
+>   instance methods/getters
 > - Inherited `Object` methods (`toString`, `hashCode`, `==`) on script class instances that
 >   don't override them
 >
@@ -69,6 +75,8 @@
 > - Pattern guards are only evaluated when the pattern matches (no stale bindings or side effects)
 > - List patterns verify length and match null/short subjects cleanly, so `[1, 2, 3]` no longer
 >   matches `[var a, var b]` and a wrong-length or null subject fails instead of crashing
+> - Structural pattern type tests are null-safe: a null subject (e.g. an absent map key) fails
+>   the match instead of crashing on the `is` check
 >
 > All fixes are covered by regression tests; the full upstream test suite passes.
 
@@ -91,7 +99,7 @@ up-to-date parsing. While compilation and execution aren't quite there yet, dart
 has over 300 tests that are run in CI to ensure correctness.
 
 Currently dart_eval implements a majority of the Dart spec, but there 
-are still missing features like generators and extension methods.
+are still missing features like generators (this fork adds extension methods).
 In addition, parts of the standard library haven't been implemented. See the
 [language feature support table](#language-feature-support-table) for details.
 
@@ -596,7 +604,7 @@ may vary when bridging.
 | For-each loops | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L54) |
 | Async for-each | ❌ | N/A |
 | Switch statements | ✅ | [20 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/switch_test.dart) |
-| Switch expressions | ❌ | N/A |
+| Switch expressions | ✅ (this fork) | [switch_test.dart](test/switch_test.dart) |
 | Labels, `break` & `continue` | Partial | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L126), [+more](https://github.com/ethanblake4/dart_eval/blob/master/test/switch_test.dart) |
 | If statements | ✅ | [[1]](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L28) |
 | Try-catch | ✅ | [5 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/exception_test.dart#L13)|
@@ -636,11 +644,11 @@ may vary when bridging.
 | Cascades | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L190) |
 | Ternary expressions | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L344) |
 | Null coalescing expressions | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L64) |
-| Extension methods | ❌ | N/A |
+| Extension methods | Partial (this fork) | [extension_test.dart](test/extension_test.dart) |
 | Const expressions | Partial | N/A |
 | Isolates | ❌ | N/A |
 | Record types | Partial | [4 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/records_test.dart#L12) |
-| Patterns | Partial | [8 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/pattern_test.dart#L13) |
+| Patterns | Partial (extended in this fork) | [pattern_test.dart](test/pattern_test.dart) |
 
 ## Features and bugs
 
