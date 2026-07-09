@@ -61,6 +61,9 @@
 >   don't override them
 >
 > **Additional fixes**
+> - Script class inheritance: inherited method calls, polymorphic dispatch through a base-typed
+>   reference, subclass methods reached via cast/promotion, and multi-level inheritance now work
+>   (previously corrupted the compiled program when extending another script class)
 > - Ternary/switch-expression results keep correct boxing (returning class instances or enums,
 >   reading a local in a branch, or assigning the result to a typed `int` no longer crash)
 > - Pattern guards are only evaluated when the pattern matches (no stale bindings or side effects)
