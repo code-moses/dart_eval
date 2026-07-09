@@ -404,14 +404,26 @@ Variable _invokeWithTarget(
       }
     }
   } else if (L.concreteTypes.length == 1 && dec0 != null && !dec0.isBridge) {
-    // If the concrete type is known we can use a static call
+    // If the concrete type is known we can use a static call. Resolve it
+    // against the class that actually declares the method, which may be a
+    // superclass of the concrete type — a class's instance table only lists
+    // its own methods, not inherited ones.
     final actualType = L.concreteTypes[0];
-    final offset = DeferredOrOffset(
-      file: actualType.file,
-      className: actualType.name,
-      methodType: 2,
-      name: e.methodName.name,
-    );
+    final declaringClass = dec0.declaration
+        ?.thisOrAncestorOfType<ClassDeclaration>();
+    final offset = declaringClass != null
+        ? DeferredOrOffset(
+            file: dec0.sourceLib,
+            className: declaringClass.namePart.toString(),
+            methodType: 2,
+            name: e.methodName.name,
+          )
+        : DeferredOrOffset(
+            file: actualType.file,
+            className: actualType.name,
+            methodType: 2,
+            name: e.methodName.name,
+          );
     final loc = ctx.pushOp(Call.make(-1), Call.length);
     ctx.offsetTracker.setOffset(loc, offset);
   } else {

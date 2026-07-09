@@ -855,17 +855,21 @@ Variable _declarationToVariable(
     );
     final DeferredOrOffset offset;
 
+    // Resolve the class's default constructor. `name` is the class name for a
+    // plain type reference (`Animal`) but already ends with `.` for a super
+    // constructor reference (`Animal.`), so don't append a second dot.
+    final ctorKey = name.endsWith('.') ? name : '$name.';
     if (ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]?.containsKey(
-          '$name.',
+          ctorKey,
         ) ??
         false) {
       offset = DeferredOrOffset(
         file: decOrBridge.sourceLib,
         offset:
-            ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]!['$name.'],
+            ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]![ctorKey],
       );
     } else {
-      offset = DeferredOrOffset(file: decOrBridge.sourceLib, name: '$name.');
+      offset = DeferredOrOffset(file: decOrBridge.sourceLib, name: ctorKey);
     }
 
     ctx.pushOp(
@@ -957,17 +961,21 @@ StaticDispatch? _declarationToStaticDispatch(
 
     final DeferredOrOffset offset;
 
+    // Resolve the class's default constructor. `name` is the class name for a
+    // plain type reference (`Animal`) but already ends with `.` for a super
+    // constructor reference (`Animal.`), so don't append a second dot.
+    final ctorKey = name.endsWith('.') ? name : '$name.';
     if (ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]?.containsKey(
-          '$name.',
+          ctorKey,
         ) ??
         false) {
       offset = DeferredOrOffset(
         file: decOrBridge.sourceLib,
         offset:
-            ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]!['$name.'],
+            ctx.topLevelDeclarationPositions[decOrBridge.sourceLib]![ctorKey],
       );
     } else {
-      offset = DeferredOrOffset(file: decOrBridge.sourceLib, name: '$name.');
+      offset = DeferredOrOffset(file: decOrBridge.sourceLib, name: ctorKey);
     }
 
     final rt = AlwaysReturnType(

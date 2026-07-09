@@ -754,5 +754,45 @@ void main() {
         runtime.executeLib('package:example/main.dart', 'main');
       }, prints('true\nfalse\ntrue\ntrue\n'));
     });
+
+    test('Script class inheritance with implicit constructors', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class Animal { String sound() => 'generic'; }
+            class Dog extends Animal { String sound() => 'woof'; int bark() => 7; }
+            class Puppy extends Dog {}
+            void main() {
+              // inherited method call on a concrete subclass
+              print(Puppy().sound());
+              // subclass-only method reached through a cast / promotion
+              Animal a = Dog();
+              if (a is Dog) print(a.bark());
+              // polymorphic dispatch through a base-typed reference
+              Animal b = Dog();
+              print(b.sound());
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:example/main.dart', 'main');
+      }, prints('woof\n7\nwoof\n'));
+    });
+
+    test('Inherited method uses a field on an empty subclass', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': '''
+            class A { int base = 10; int compute() => base * 2; }
+            class B extends A {}
+            int main() => B().compute();
+          ''',
+        },
+      });
+
+      expect(runtime.executeLib('package:example/main.dart', 'main'), 20);
+    });
   });
 }
