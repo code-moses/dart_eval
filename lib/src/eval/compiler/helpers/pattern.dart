@@ -110,6 +110,40 @@ TypeRef patternTypeBound(
         );
       }
       return type;
+    case MapPattern pat:
+      TypeRef? keyType, valueType;
+      if (pat.typeArguments != null) {
+        if (pat.typeArguments!.arguments.length != 2) {
+          throw CompileError(
+            'Map pattern must have exactly two type arguments',
+            source,
+          );
+        }
+        keyType = TypeRef.fromAnnotation(
+          ctx,
+          ctx.library,
+          pat.typeArguments!.arguments[0],
+        );
+        valueType = TypeRef.fromAnnotation(
+          ctx,
+          ctx.library,
+          pat.typeArguments!.arguments[1],
+        );
+      }
+      final result = CoreTypes.map
+          .ref(ctx)
+          .copyWith(
+            specifiedTypeArgs: [
+              if (keyType != null && valueType != null) ...[keyType, valueType],
+            ],
+          );
+      if (bound != null && !result.isAssignableTo(ctx, bound)) {
+        throw CompileError(
+          'Map pattern type $result is not assignable to bound type $bound',
+          source,
+        );
+      }
+      return result;
     case WildcardPattern pat:
       final typeAnnotation = pat.type;
       if (typeAnnotation == null) {
@@ -311,20 +345,8 @@ Variable patternMatchAndBind(
           ? BuiltinValue().push(ctx).boxIfNeeded(ctx)
           : null;
 
-      // Copies an already-boxed list element into [slot], preserving its type
-      // so a nested pattern can index it via IndexList rather than a dynamic
-      // invoke.
-      Variable storeElement(Variable slot, Variable el) {
-        final out = slot.copyWith(
-          type: el.type.copyWith(nullable: true),
-          concreteTypes: [],
-        );
-        ctx.pushOp(
-          CopyValue.make(out.scopeFrameOffset, el.scopeFrameOffset),
-          CopyValue.LEN,
-        );
-        return out;
-      }
+      Variable storeElement(Variable slot, Variable el) =>
+          _storeInto(ctx, slot, el);
 
       macroBranch(
         ctx,
@@ -400,6 +422,130 @@ Variable patternMatchAndBind(
         result = result.invoke(ctx, '&&', [m]).result;
       }
       return result;
+    case MapPattern pat:
+      // A map pattern matches when the subject is a Map that contains every
+      // listed key and each value sub-pattern matches the mapped value. A null
+      // or non-Map subject, or a missing key, fails the match cleanly. Key and
+      // value lookups are gated on the is-Map test so they never run against a
+      // non-map subject.
+      final entries = <MapPatternEntry>[
+        for (final el in pat.elements)
+          if (el is MapPatternEntry)
+            el
+          else
+            throw CompileError(
+              'Map patterns do not support rest elements',
+              pattern,
+            ),
+      ];
+      final mapType = CoreTypes.map.ref(ctx);
+      V = V.boxIfNeeded(ctx);
+      final isMap = _typeTestRef(ctx, mapType, V);
+      final probe = V.copyWith(
+        type: mapType.copyWith(boxed: true),
+        concreteTypes: const [],
+      );
+
+      // Surviving slots: whether each key is present, and the mapped value.
+      final presentSlots = [
+        for (var i = 0; i < entries.length; i++)
+          BuiltinValue(boolval: false).push(ctx),
+      ];
+      final valueSlots = [
+        for (var i = 0; i < entries.length; i++)
+          BuiltinValue().push(ctx).boxIfNeeded(ctx),
+      ];
+
+      macroBranch(
+        ctx,
+        null,
+        condition: (ctx) => isMap,
+        thenBranch: (ctx, rt) {
+          for (var i = 0; i < entries.length; i++) {
+            // Box the key once so both lookups reuse the same boxed slot; an
+            // invoke boxes its args in place, which would otherwise leave the
+            // second use double-boxing a stale reference.
+            final key = compileExpression(entries[i].key, ctx).boxIfNeeded(ctx);
+            final contains = probe
+                .invoke(ctx, 'containsKey', [key])
+                .result
+                .unboxIfNeeded(ctx);
+            ctx.pushOp(
+              CopyValue.make(
+                presentSlots[i].scopeFrameOffset,
+                contains.scopeFrameOffset,
+              ),
+              CopyValue.LEN,
+            );
+            final val = probe.invoke(ctx, '[]', [key]).result.boxIfNeeded(ctx);
+            valueSlots[i] = _storeInto(ctx, valueSlots[i], val);
+          }
+          return StatementInfo(-1);
+        },
+      );
+
+      Variable mapResult = isMap;
+      for (var i = 0; i < entries.length; i++) {
+        mapResult = mapResult.invoke(ctx, '&&', [presentSlots[i]]).result;
+        final m = patternMatchAndBind(
+          ctx,
+          entries[i].value,
+          valueSlots[i],
+          patternContext: patternContext,
+        );
+        mapResult = mapResult.invoke(ctx, '&&', [m]).result;
+      }
+      return mapResult;
+    case ObjectPattern pat:
+      // An object pattern matches when the subject is an instance of the named
+      // type and every field sub-pattern matches the corresponding getter. The
+      // getter reads are gated on the type test so they never run against a
+      // wrong-typed or null subject.
+      final patType = TypeRef.fromAnnotation(ctx, ctx.library, pat.type);
+      V = V.boxIfNeeded(ctx);
+      final typeMatches = _typeTestRef(ctx, patType, V);
+      // Promote the subject to the pattern's type (safe inside the gate) so
+      // getters resolve statically rather than through dynamic dispatch.
+      final promoted = V.copyWith(
+        type: patType.copyWith(boxed: V.boxed),
+        concreteTypes: const [],
+      );
+
+      final fieldSlots = [
+        for (var i = 0; i < pat.fields.length; i++)
+          BuiltinValue().push(ctx).boxIfNeeded(ctx),
+      ];
+
+      macroBranch(
+        ctx,
+        null,
+        condition: (ctx) => typeMatches,
+        thenBranch: (ctx, rt) {
+          for (var i = 0; i < pat.fields.length; i++) {
+            final getterName =
+                pat.fields[i].effectiveName ??
+                (throw CompileError(
+                  'Object pattern fields must be named',
+                  pattern,
+                ));
+            final val = promoted.getProperty(ctx, getterName).boxIfNeeded(ctx);
+            fieldSlots[i] = _storeInto(ctx, fieldSlots[i], val);
+          }
+          return StatementInfo(-1);
+        },
+      );
+
+      Variable objResult = typeMatches;
+      for (var i = 0; i < pat.fields.length; i++) {
+        final m = patternMatchAndBind(
+          ctx,
+          pat.fields[i].pattern,
+          fieldSlots[i],
+          patternContext: patternContext,
+        );
+        objResult = objResult.invoke(ctx, '&&', [m]).result;
+      }
+      return objResult;
     case VariablePattern pat:
       final variableName = pat.name.lexeme;
       final declare =
@@ -479,15 +625,57 @@ Variable _typeTest(CompilerContext ctx, TypeAnnotation? patType, Variable V) {
   final slot = patType != null
       ? TypeRef.fromAnnotation(ctx, ctx.library, patType)
       : CoreTypes.dynamic.ref(ctx);
+  return _typeTestRef(ctx, slot, V);
+}
 
+/// Emits a runtime `is [slot]` test on [V], collapsing to a constant `true`
+/// when the static type already guarantees the match. The test is null-safe: a
+/// null subject matches only when [slot] is nullable, and the `IsType` op —
+/// which requires a `$Value` — is guarded so a raw or boxed null (e.g. an
+/// absent map key) yields a clean boolean instead of a cast error.
+Variable _typeTestRef(CompilerContext ctx, TypeRef slot, Variable V) {
   V.inferType(ctx, slot);
   if (V.type.isAssignableTo(ctx, slot, forceAllowDynamic: false)) {
     return BuiltinValue(boolval: true).push(ctx);
   }
 
-  ctx.pushOp(
-    IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, false),
-    IsType.length,
+  V = V.boxIfNeeded(ctx);
+  final result = BuiltinValue(boolval: slot.nullable).push(ctx);
+  macroBranch(
+    ctx,
+    null,
+    condition: (ctx) => checkNotNull(ctx, V),
+    thenBranch: (ctx, rt) {
+      ctx.pushOp(
+        IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, false),
+        IsType.length,
+      );
+      final isType = Variable.alloc(
+        ctx,
+        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
+      );
+      ctx.pushOp(
+        CopyValue.make(result.scopeFrameOffset, isType.scopeFrameOffset),
+        CopyValue.LEN,
+      );
+      return StatementInfo(-1);
+    },
   );
-  return Variable.alloc(ctx, CoreTypes.bool.ref(ctx).copyWith(boxed: false));
+  return result;
+}
+
+/// Copies [val] into the pre-allocated surviving [slot], preserving val's
+/// (nullable) type so a nested sub-pattern keeps a precise element type rather
+/// than falling back to a dynamic dispatch. Used to hoist values extracted
+/// inside a gated branch out to slots that outlive the branch's alloc scope.
+Variable _storeInto(CompilerContext ctx, Variable slot, Variable val) {
+  final out = slot.copyWith(
+    type: val.type.copyWith(nullable: true),
+    concreteTypes: const [],
+  );
+  ctx.pushOp(
+    CopyValue.make(out.scopeFrameOffset, val.scopeFrameOffset),
+    CopyValue.LEN,
+  );
+  return out;
 }

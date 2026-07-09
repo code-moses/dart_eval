@@ -476,4 +476,130 @@ void main() {
       }, prints('1,2,3\n1-0-2\n'));
     });
   });
+
+  group('Map pattern tests', () {
+    late Compiler compiler;
+
+    setUp(() {
+      compiler = Compiler();
+    });
+
+    test('Map pattern matches keys and binds values, missing key fails', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': r'''
+            String describe(Object o) {
+              switch (o) {
+                case {'type': 'circle', 'r': int r}:
+                  return 'circle r=$r';
+                case {'type': 'rect', 'w': int w, 'h': int h}:
+                  return 'rect ${w}x$h';
+                default:
+                  return 'unknown';
+              }
+            }
+            String main() {
+              final out = <String>[];
+              out.add(describe({'type': 'circle', 'r': 5}));
+              out.add(describe({'type': 'rect', 'w': 3, 'h': 4}));
+              out.add(describe({'type': 'circle'}));
+              out.add(describe({'type': 'triangle', 'r': 1}));
+              out.add(describe(42));
+              return out.join('|');
+            }
+          ''',
+        },
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        $String('circle r=5|rect 3x4|unknown|unknown|unknown'),
+      );
+    });
+
+    test('Map pattern in irrefutable declaration destructures values', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': r'''
+            String main() {
+              final m = {'a': 1, 'b': 2, 'c': 3};
+              final {'a': x, 'c': z} = m;
+              return '$x,$z';
+            }
+          ''',
+        },
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        $String('1,3'),
+      );
+    });
+  });
+
+  group('Object pattern tests', () {
+    late Compiler compiler;
+
+    setUp(() {
+      compiler = Compiler();
+    });
+
+    test('Object pattern matches type and destructures getters', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': r'''
+            class Point {
+              final int x;
+              final int y;
+              Point(this.x, this.y);
+            }
+            String describe(Object o) {
+              switch (o) {
+                case Point(x: 0, y: var y):
+                  return 'y-axis at $y';
+                case Point(x: var x, y: var y):
+                  return 'point $x,$y';
+                default:
+                  return 'not a point';
+              }
+            }
+            String main() {
+              final out = <String>[];
+              out.add(describe(Point(0, 9)));
+              out.add(describe(Point(2, 3)));
+              out.add(describe('hello'));
+              return out.join('|');
+            }
+          ''',
+        },
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        $String('y-axis at 9|point 2,3|not a point'),
+      );
+    });
+
+    test('Object pattern with field shorthand and irrefutable destructure', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'example': {
+          'main.dart': r'''
+            class Point {
+              final int x;
+              final int y;
+              Point(this.x, this.y);
+            }
+            String main() {
+              final p = Point(7, 8);
+              final Point(:x, :y) = p;
+              String shorthand = 'nope';
+              if (p case Point(:var x)) shorthand = 'x=$x';
+              return '$x,$y|$shorthand';
+            }
+          ''',
+        },
+      });
+      expect(
+        runtime.executeLib('package:example/main.dart', 'main'),
+        $String('7,8|x=7'),
+      );
+    });
+  });
 }
