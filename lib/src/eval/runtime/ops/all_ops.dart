@@ -230,6 +230,9 @@ class Evc {
   /// [PushFunctionPtrCopyCapture]
   static const OP_PUSH_FUNCTION_PTR_COPY_CAPTURE = 73;
 
+  /// [AssertBoxState]
+  static const OP_ASSERT_BOX_STATE = 74;
+
   static List<int> i16b(int i16) {
     final x = ByteData(2);
     x.setInt16(0, i16);
@@ -347,4 +350,5 @@ final List<OpLoader> ops = [
   (Runtime rt) => SetAdd(rt), // 71
   (Runtime rt) => BoxSet(rt), // 72
   (Runtime rt) => PushFunctionPtrCopyCapture(rt), // 73
+  (Runtime rt) => AssertBoxState(rt), // 74
 ];

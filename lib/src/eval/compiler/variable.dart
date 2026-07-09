@@ -77,11 +77,36 @@ class Variable {
   String? name;
   int? frameIndex;
 
+  /// When [CompilerContext.verifyBoxing] is on, emits a runtime assertion that
+  /// this variable's slot actually holds the given [boxed] representation.
+  /// A no-op for the -1 sentinel offset (unmaterialized values) and when the
+  /// flag is off.
+  void _assertBoxState(ScopeContext ctx, bool boxed) {
+    if (ctx is! CompilerContext || !ctx.verifyBoxing || scopeFrameOffset < 0) {
+      return;
+    }
+    // `dynamic` and `Object` are representation-polymorphic: the compiler
+    // treats them as logically boxed but never materializes a box op, so a slot
+    // of that static type may legitimately hold a raw value. Only concrete
+    // types have a deterministic representation tied to the boxed flag, so
+    // restrict verification to them (which is where box/unbox drift actually
+    // causes crashes).
+    if (type == CoreTypes.dynamic.ref(ctx) ||
+        type == CoreTypes.object.ref(ctx)) {
+      return;
+    }
+    ctx.pushOp(
+      AssertBoxState.make(scopeFrameOffset, boxed),
+      AssertBoxState.LEN,
+    );
+  }
+
   /// Boxes the variable, if it isn't yet. Does nothing with a dynamic
   /// type. Pushes a proper operator to box this value on the frame, and
   /// returns this instance with the type marked as boxed.
   Variable boxIfNeeded(ScopeContext ctx, [AstNode? source]) {
     if (boxed) {
+      _assertBoxState(ctx, true);
       return this;
     }
 
@@ -89,6 +114,7 @@ class Variable {
 
     if (type == CoreTypes.dynamic.ref(ctx) ||
         type == CoreTypes.object.ref(ctx)) {
+      _assertBoxState(ctx, true);
       return copyWith(type: type.copyWith(boxed: true));
     }
 
@@ -119,6 +145,7 @@ class Variable {
       throw CompileError('Cannot box $type', source);
     }
 
+    _assertBoxState(ctx, true);
     return copyWithUpdate(ctx, type: type.copyWith(boxed: true));
   }
 
@@ -129,9 +156,11 @@ class Variable {
   /// Set [update] to false if that's not desired.
   Variable unboxIfNeeded(ScopeContext ctx, [bool update = true]) {
     if (!boxed) {
+      _assertBoxState(ctx, false);
       return this;
     }
     ctx.pushOp(Unbox.make(scopeFrameOffset), Unbox.LEN);
+    _assertBoxState(ctx, false);
     if (!update) {
       return copyWith(type: type.copyWith(boxed: false));
     }

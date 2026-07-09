@@ -91,7 +91,7 @@ class _UnloadedEnumValues {
 ///
 class Runtime {
   /// The current runtime version code
-  static const int versionCode = 82;
+  static const int versionCode = 83;
 
   /// Construct a runtime from EVC bytecode. When possible, use the
   /// [Runtime.ofProgram] constructor instead to reduce loading time.
@@ -718,6 +718,12 @@ class Runtime {
           Evc.OP_ASSERT,
           ...Evc.i16b(op._valueOffset),
           ...Evc.i16b(op._exceptionOffset),
+        ];
+      case AssertBoxState op:
+        return [
+          Evc.OP_ASSERT_BOX_STATE,
+          ...Evc.i16b(op._reg),
+          op._expectBoxed ? 1 : 0,
         ];
       case PushFinally op:
         return [Evc.OP_PUSH_FINALLY, ...Evc.i32b(op._tryOffset)];

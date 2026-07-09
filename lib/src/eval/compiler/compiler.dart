@@ -85,6 +85,14 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   /// mismatch, like standard Dart.
   var softNullableCasts = false;
 
+  /// When enabled, the compiler emits runtime assertions at every box/unbox
+  /// transition that verify a slot's actual representation (boxed `$Value` vs
+  /// raw value) matches what the compiler believes it to be. Intended for
+  /// debugging and for the test suite: it turns silent box/unbox drift — the
+  /// root cause of most "is not a subtype of $Instance/$Value" crashes — into
+  /// an immediate, located failure. Off by default; adds runtime overhead.
+  var verifyBoxing = false;
+
   // Add a plugin, which will only be run once.
   @override
   void addPlugin(EvalPlugin plugin) {
@@ -195,7 +203,8 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
 
     // Create a compilation context
     _ctx = CompilerContext(0, version: version)
-      ..softNullableCasts = softNullableCasts;
+      ..softNullableCasts = softNullableCasts
+      ..verifyBoxing = verifyBoxing;
 
     for (final plugin in _plugins) {
       if (!_appliedPlugins.contains(plugin.identifier)) {

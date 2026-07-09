@@ -192,6 +192,11 @@ class CompilerContext with ScopeContext {
   /// nullable type evaluates to null instead of throwing.
   bool softNullableCasts = false;
 
+  /// See [Compiler.verifyBoxing]: when enabled, box/unbox transitions emit
+  /// runtime [AssertBoxState] ops that check the slot's representation matches
+  /// the compiler's belief, surfacing box/unbox drift at its source.
+  bool verifyBoxing = false;
+
   String? get currentClassName {
     final currentClass = this.currentClass;
 

@@ -717,3 +717,43 @@ class PushRecord implements EvcOp {
   @override
   String toString() => 'PushRecord (L$_fields, C$_const)';
 }
+
+/// A debug-only assertion that the value at [_reg] matches the boxing state the
+/// compiler believes it has: boxed values must be `$Value`s, unboxed values
+/// must not be. Emitted only when [Compiler.verifyBoxing] is enabled, so it
+/// pinpoints box/unbox drift at its source instead of surfacing as an opaque
+/// cast error several ops later. Null is treated as consistent with either
+/// state (a raw `null` and a `$null` are both legal representations).
+class AssertBoxState implements EvcOp {
+  AssertBoxState(Runtime runtime)
+    : _reg = runtime._readInt16(),
+      _expectBoxed = runtime._readUint8() > 0;
+
+  AssertBoxState.make(this._reg, this._expectBoxed);
+
+  final int _reg;
+  final bool _expectBoxed;
+
+  static const int LEN = Evc.BASE_OPLEN + Evc.I16_LEN + Evc.I8_LEN;
+
+  @override
+  void run(Runtime runtime) {
+    final value = runtime.frame[_reg];
+    if (value == null) {
+      return;
+    }
+    final isBoxed = value is $Value;
+    if (isBoxed != _expectBoxed) {
+      throw Exception(
+        'dart_eval box-state assertion failed at L$_reg: compiler expected '
+        '${_expectBoxed ? 'a boxed \$Value' : 'an unboxed value'} but found '
+        '${isBoxed ? 'a boxed \$Value' : 'an unboxed ${value.runtimeType}'}. '
+        'This indicates box/unbox drift in the compiler.',
+      );
+    }
+  }
+
+  @override
+  String toString() =>
+      'AssertBoxState (L$_reg, ${_expectBoxed ? 'boxed' : 'unboxed'})';
+}
