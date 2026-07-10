@@ -92,10 +92,7 @@ Variable _compileSoftCast(
         IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, false),
         IsType.length,
       );
-      final vIs = Variable.alloc(
-        ctx,
-        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-      );
+      final vIs = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
       macroBranch(
         ctx,
         null,
@@ -123,10 +120,7 @@ void _typeTestAndAssert(CompilerContext ctx, Variable V, TypeRef slot) {
     IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, false),
     IsType.length,
   );
-  final vIs = Variable.alloc(
-    ctx,
-    CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-  );
+  final vIs = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
 
   final errMsg = BuiltinValue(
     stringval: "TypeError: Not a subtype of type ${slot.name}",

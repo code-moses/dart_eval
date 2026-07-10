@@ -148,13 +148,8 @@ Variable compileMethodInvocation(
       );
       final v = Variable.alloc(
         ctx,
-        mReturnType.type?.copyWith(
-              boxed:
-                  L != null ||
-                  !(mReturnType.type?.isUnboxedAcrossFunctionBoundaries ??
-                      false),
-            ) ??
-            CoreTypes.dynamic.ref(ctx),
+        returnType ?? CoreTypes.dynamic.ref(ctx),
+        boxed: returnType?.boxed ?? true,
         concreteTypes: returnType == null ? [] : [returnType],
       );
 
@@ -303,6 +298,7 @@ Variable compileMethodInvocation(
   final v = Variable.alloc(
     ctx,
     returnType ?? CoreTypes.dynamic.ref(ctx),
+    boxed: returnType?.boxed ?? true,
     concreteTypes: [if (isConstructor && returnType != null) returnType],
   );
 
@@ -476,7 +472,8 @@ Variable _invokeWithTarget(
 
   final v = Variable.alloc(
     ctx,
-    mReturnType?.type?.copyWith(boxed: true) ?? CoreTypes.dynamic.ref(ctx),
+    mReturnType?.type ?? CoreTypes.dynamic.ref(ctx),
+    boxed: true,
   );
 
   return v;
@@ -509,7 +506,8 @@ Variable _invokeExtensionMethod(
   ctx.offsetTracker.setOffset(loc, offset);
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
 
-  return Variable.alloc(ctx, extensionReturnType(ctx, ext));
+  final extReturnType = extensionReturnType(ctx, ext);
+  return Variable.alloc(ctx, extReturnType, boxed: extReturnType.boxed);
 }
 
 DeclarationOrBridge<MethodDeclaration, BridgeMethodDef> resolveInstanceMethod(

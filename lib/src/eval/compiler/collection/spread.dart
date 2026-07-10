@@ -96,10 +96,7 @@ void _compileSpreadLoop(
   final $1 = BuiltinValue(intval: 1).push(ctx);
 
   // Get the length of the collection
-  final len = Variable.alloc(
-    ctx,
-    CoreTypes.int.ref(ctx).copyWith(boxed: false),
-  );
+  final len = Variable.alloc(ctx, CoreTypes.int.ref(ctx), boxed: false);
   ctx.pushOp(
     PushIterableLength.make(collection.scopeFrameOffset),
     PushIterableLength.LEN,
@@ -114,10 +111,7 @@ void _compileSpreadLoop(
     },
     condition: (ctx) {
       // i < len
-      final v = Variable.alloc(
-        ctx,
-        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-      );
+      final v = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
       ctx.pushOp(
         NumLt.make($i.scopeFrameOffset, len.scopeFrameOffset),
         NumLt.LEN,
@@ -125,8 +119,13 @@ void _compileSpreadLoop(
       return v;
     },
     body: (ctx, rt) {
-      // Get the element at index i
-      final element = Variable.alloc(ctx, collectionElementType);
+      // Get the element at index i; representation follows the source
+      // collection's element type.
+      final element = Variable.alloc(
+        ctx,
+        collectionElementType,
+        boxed: collectionElementType.boxed,
+      );
       ctx.pushOp(
         IndexList.make(collection.scopeFrameOffset, $i.scopeFrameOffset),
         IndexList.LEN,
@@ -145,10 +144,7 @@ void _compileSpreadLoop(
     },
     update: (ctx) {
       // i++
-      final ip1 = Variable.alloc(
-        ctx,
-        CoreTypes.int.ref(ctx).copyWith(boxed: false),
-      );
+      final ip1 = Variable.alloc(ctx, CoreTypes.int.ref(ctx), boxed: false);
       ctx.pushOp(
         NumAdd.make($i.scopeFrameOffset, $1.scopeFrameOffset),
         NumAdd.LEN,

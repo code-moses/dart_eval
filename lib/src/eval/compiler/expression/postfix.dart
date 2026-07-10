@@ -25,7 +25,8 @@ Variable compilePostfixExpression(PostfixExpression e, CompilerContext ctx) {
   final L = V.getValue(ctx);
   var out = L;
 
-  out = Variable.alloc(ctx, L.type);
+  // `out` is a copy of L's slot, so it shares L's representation.
+  out = Variable.alloc(ctx, L.type, boxed: L.type.boxed);
   ctx.pushOp(PushNull.make(), PushNull.LEN);
   ctx.pushOp(
     CopyValue.make(out.scopeFrameOffset, L.scopeFrameOffset),

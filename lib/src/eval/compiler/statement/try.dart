@@ -61,7 +61,7 @@ StatementInfo compileTryStatement(
     final state = ctx.saveState();
     ctx.beginAllocScope();
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    final v = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
+    final v = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx), boxed: true);
     ctx.caughtExceptions.add(v);
     catchInfo = _compileCatchClause(
       ctx,
@@ -119,10 +119,7 @@ StatementInfo _compileCatchClause(
         ),
         IsType.length,
       );
-      return Variable.alloc(
-        ctx,
-        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-      );
+      return Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
     },
     thenBranch: (ctx, expectedReturnType) {
       if (catchClause.exceptionParameter != null) {

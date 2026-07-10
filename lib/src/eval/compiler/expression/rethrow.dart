@@ -7,5 +7,5 @@ import 'package:dart_eval/src/eval/compiler/type.dart';
 
 Variable compileRethrowExpression(CompilerContext ctx, RethrowExpression e) {
   ctx.pushOp(Throw.make(ctx.caughtExceptions.last.scopeFrameOffset), Throw.LEN);
-  return Variable(-1, CoreTypes.never.ref(ctx));
+  return Variable(-1, CoreTypes.never.ref(ctx), boxed: true);
 }

@@ -40,7 +40,11 @@ StatementInfo doReturn(
             );
             ctx.pushOp(awaitOp, Await.LEN);
             ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-            final result = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
+            final result = Variable.alloc(
+              ctx,
+              CoreTypes.dynamic.ref(ctx),
+              boxed: true,
+            );
             ctx.pushOp(
               ReturnAsync.make(
                 result.scopeFrameOffset,

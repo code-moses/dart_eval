@@ -63,7 +63,13 @@ extension TearOff on Variable {
     final existingAllocs = 1 + (parameters?.parameters.length ?? 0);
     ctx.beginAllocScope(existingAllocLen: existingAllocs, closure: true);
 
-    final $prev = Variable(0, CoreTypes.list.ref(ctx), isFinal: true);
+    // The #prev frame list is stored raw on the frame.
+    final $prev = Variable(
+      0,
+      CoreTypes.list.ref(ctx),
+      boxed: false,
+      isFinal: true,
+    );
     ctx.setLocal('#prev', $prev);
 
     ctx.scopeFrameOffset += existingAllocs;
@@ -89,7 +95,7 @@ extension TearOff on Variable {
         IndexList.make(0, targetOffset.scopeFrameOffset),
         IndexList.LEN,
       );
-      $target = Variable.alloc(ctx, targetType!);
+      $target = Variable.alloc(ctx, targetType!, boxed: targetType.boxed);
       ctx.pushOp(PushArg.make($target.scopeFrameOffset), PushArg.LEN);
     }
 
@@ -101,7 +107,8 @@ extension TearOff on Variable {
       if (p.type != null) {
         type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
       }
-      vRep = Variable(i, type.copyWith(boxed: true));
+      // Tearoff invocations pass all arguments boxed.
+      vRep = Variable(i, type, boxed: true);
       vRep = ctx.setLocal(p.name!.lexeme, vRep);
       if (type.isUnboxedAcrossFunctionBoundaries && dec is! MethodDeclaration) {
         vRep = vRep.unboxIfNeeded(ctx);
@@ -122,7 +129,7 @@ extension TearOff on Variable {
         IndexList.make(0, targetOffset.scopeFrameOffset),
         IndexList.LEN,
       );
-      final $target = Variable.alloc(ctx, targetType!);
+      final $target = Variable.alloc(ctx, targetType!, boxed: targetType.boxed);
       final invokeOp = InvokeDynamic.make(
         $target.scopeFrameOffset,
         ctx.constantPool.addOrGet(methodName),
@@ -151,7 +158,7 @@ extension TearOff on Variable {
             !returnType.isUnboxedAcrossFunctionBoundaries,
       );
     }
-    var rV = Variable.alloc(ctx, returnType);
+    var rV = Variable.alloc(ctx, returnType, boxed: returnType.boxed);
     rV = rV.boxIfNeeded(ctx);
 
     ctx.pushOp(Return.make(rV.scopeFrameOffset), Return.LEN);
@@ -216,6 +223,7 @@ extension TearOff on Variable {
     return Variable.alloc(
       ctx,
       CoreTypes.function.ref(ctx),
+      boxed: true,
       methodReturnType: AlwaysReturnType(CoreTypes.dynamic.ref(ctx), false),
       methodOffset: DeferredOrOffset(offset: fnOffset),
       callingConvention: CallingConvention.dynamic,

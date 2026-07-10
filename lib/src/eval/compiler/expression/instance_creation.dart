@@ -91,8 +91,5 @@ Variable compileInstanceCreation(
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
   }
 
-  return Variable.alloc(
-    ctx,
-    $resolved.concreteTypes.first.copyWith(boxed: true),
-  );
+  return Variable.alloc(ctx, $resolved.concreteTypes.first, boxed: true);
 }

@@ -17,6 +17,7 @@ void doAssert(CompilerContext ctx, Variable condition, Variable message) {
   final assertionErr = Variable.alloc(
     ctx,
     TypeRef.fromBridgeTypeRef(ctx, BridgeTypeRef(CoreTypes.assertionError)),
+    boxed: true,
   );
 
   ctx.pushOp(

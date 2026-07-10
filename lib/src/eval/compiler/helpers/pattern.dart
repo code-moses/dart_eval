@@ -577,7 +577,13 @@ Variable patternMatchAndBind(
           V = V.boxIfNeeded(ctx);
         }
         final boundType = (declaredType ?? V.type).copyWith(boxed: V.boxed);
-        var v = Variable.alloc(ctx, boundType, isFinal: isFinal);
+        // The new slot is a copy of V, so it shares V's representation.
+        var v = Variable.alloc(
+          ctx,
+          boundType,
+          boxed: V.boxed,
+          isFinal: isFinal,
+        );
         ctx.pushOp(PushNull.make(), PushNull.LEN);
         ctx.pushOp(
           CopyValue.make(v.scopeFrameOffset, V.scopeFrameOffset),
@@ -650,10 +656,7 @@ Variable _typeTestRef(CompilerContext ctx, TypeRef slot, Variable V) {
         IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, false),
         IsType.length,
       );
-      final isType = Variable.alloc(
-        ctx,
-        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-      );
+      final isType = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
       ctx.pushOp(
         CopyValue.make(result.scopeFrameOffset, isType.scopeFrameOffset),
         CopyValue.LEN,

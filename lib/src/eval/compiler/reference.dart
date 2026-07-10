@@ -294,7 +294,8 @@ class IdentifierReference implements Reference {
           if (gIndex != null) {
             ctx.pushOp(LoadGlobal.make(gIndex), LoadGlobal.LEN);
             ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-            return Variable.alloc(ctx, type);
+            // Enum values are stored in globals as boxed instances.
+            return Variable.alloc(ctx, type, boxed: true);
           }
         }
         final decOrBridge =
@@ -316,7 +317,7 @@ class IdentifierReference implements Reference {
                 InvokeExternal.LEN,
               );
               ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-              return Variable.alloc(ctx, getterType);
+              return Variable.alloc(ctx, getterType, boxed: getterType.boxed);
             }
             final field = br.fields[name];
             if (field != null) {
@@ -329,7 +330,7 @@ class IdentifierReference implements Reference {
                 InvokeExternal.LEN,
               );
               ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-              return Variable.alloc(ctx, fieldType);
+              return Variable.alloc(ctx, fieldType, boxed: fieldType.boxed);
             }
 
             throw CompileError(
@@ -356,7 +357,7 @@ class IdentifierReference implements Reference {
         final gIndex = ctx.topLevelGlobalIndices[classType.file]![fqName]!;
         ctx.pushOp(LoadGlobal.make(gIndex), LoadGlobal.LEN);
         ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-        return Variable.alloc(ctx, type);
+        return Variable.alloc(ctx, type, boxed: type.boxed);
       }
       object = object!.boxIfNeeded(ctx, source);
       return object!.getProperty(ctx, name);
@@ -390,6 +391,7 @@ class IdentifierReference implements Reference {
             return Variable(
               -1,
               CoreTypes.function.ref(ctx),
+              boxed: true,
               methodOffset: DeferredOrOffset(
                 file: ctx.library,
                 className: ctx.currentClassName!,
@@ -416,14 +418,16 @@ class IdentifierReference implements Reference {
                   'Property "$name" has a setter but no getter, so it cannot be accessed',
                   source,
                 ));
+            final getterType = TypeRef.fromBridgeAnnotation(
+              ctx,
+              getter.functionDescriptor.returns,
+              specifiedType: $type,
+              specifyingType: $this.type,
+            );
             return Variable.alloc(
               ctx,
-              TypeRef.fromBridgeAnnotation(
-                ctx,
-                getter.functionDescriptor.returns,
-                specifiedType: $type,
-                specifyingType: $this.type,
-              ),
+              getterType,
+              boxed: getterType.boxed,
               methodOffset: DeferredOrOffset(
                 file: ctx.library,
                 className: ctx.currentClassName!,
@@ -436,6 +440,7 @@ class IdentifierReference implements Reference {
             return Variable.alloc(
               ctx,
               CoreTypes.function.ref(ctx),
+              boxed: true,
               methodOffset: DeferredOrOffset(
                 file: ctx.library,
                 className: ctx.currentClassName!,
@@ -444,14 +449,16 @@ class IdentifierReference implements Reference {
             );
           }
           if (bridge is BridgeFieldDef) {
+            final bridgeFieldType = TypeRef.fromBridgeAnnotation(
+              ctx,
+              bridge.type,
+              specifiedType: $type,
+              specifyingType: $this.type,
+            );
             return Variable.alloc(
               ctx,
-              TypeRef.fromBridgeAnnotation(
-                ctx,
-                bridge.type,
-                specifiedType: $type,
-                specifyingType: $this.type,
-              ),
+              bridgeFieldType,
+              boxed: bridgeFieldType.boxed,
               methodOffset: DeferredOrOffset(
                 file: ctx.library,
                 className: ctx.currentClassName!,
@@ -465,10 +472,13 @@ class IdentifierReference implements Reference {
           );
         }
 
+        final implicitFieldType =
+            TypeRef.lookupFieldType(ctx, $type, name, source: source) ??
+            CoreTypes.dynamic.ref(ctx);
         return Variable.alloc(
           ctx,
-          TypeRef.lookupFieldType(ctx, $type, name, source: source) ??
-              CoreTypes.dynamic.ref(ctx),
+          implicitFieldType,
+          boxed: implicitFieldType.boxed,
         );
       }
 
@@ -481,7 +491,7 @@ class IdentifierReference implements Reference {
         );
         ctx.pushOp(op, PushObjectProperty.len(op));
         ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-        return Variable.alloc(ctx, enumGetterType);
+        return Variable.alloc(ctx, enumGetterType, boxed: enumGetterType.boxed);
       }
 
       final staticDeclaration = resolveStaticDeclaration(
@@ -497,6 +507,7 @@ class IdentifierReference implements Reference {
           return Variable(
             -1,
             CoreTypes.function.ref(ctx),
+            boxed: true,
             methodOffset: DeferredOrOffset.lookupStatic(
               ctx,
               ctx.library,
@@ -511,7 +522,7 @@ class IdentifierReference implements Reference {
           ctx.pushOp(LoadGlobal.make(gIndex), LoadGlobal.LEN);
           ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
 
-          return Variable.alloc(ctx, type);
+          return Variable.alloc(ctx, type, boxed: type.boxed);
         }
       }
     }
@@ -706,7 +717,9 @@ class IndexedReference implements Reference {
       final listElementType = _variable.type.specifiedTypeArgs.isNotEmpty
           ? _variable.type.specifiedTypeArgs[0]
           : CoreTypes.dynamic.ref(ctx);
-      return Variable.alloc(ctx, listElementType);
+      // IndexList pushes the element as stored; representation follows the
+      // list's element type.
+      return Variable.alloc(ctx, listElementType, boxed: listElementType.boxed);
     }
 
     if (_variable.type.isAssignableTo(
@@ -736,11 +749,13 @@ class IndexedReference implements Reference {
         IndexMap.LEN,
       );
 
+      final mapValueType = _variable.type.specifiedTypeArgs.length < 2
+          ? CoreTypes.dynamic.ref(ctx)
+          : _variable.type.specifiedTypeArgs[1];
       final mapResult = Variable.alloc(
         ctx,
-        _variable.type.specifiedTypeArgs.length < 2
-            ? CoreTypes.dynamic.ref(ctx)
-            : _variable.type.specifiedTypeArgs[1],
+        mapValueType,
+        boxed: mapValueType.boxed,
       );
 
       if (_variable.type.specifiedTypeArgs.isEmpty ||
@@ -828,6 +843,7 @@ Variable _declarationToVariable(
       return Variable.alloc(
         ctx,
         CoreTypes.type.ref(ctx),
+        boxed: true,
         concreteTypes: [type],
         methodOffset: DeferredOrOffset(file: type.file, name: '${type.name}.'),
         methodReturnType: AlwaysReturnType(type, false),
@@ -844,6 +860,7 @@ Variable _declarationToVariable(
       return Variable.alloc(
         ctx,
         CoreTypes.type.ref(ctx),
+        boxed: true,
         concreteTypes: [type],
         methodOffset: DeferredOrOffset(
           file: type.file,
@@ -861,6 +878,7 @@ Variable _declarationToVariable(
       return Variable(
         -1,
         CoreTypes.function.ref(ctx),
+        boxed: true,
         methodReturnType: AlwaysReturnType(returnType, false),
         methodOffset: DeferredOrOffset(file: decOrBridge.sourceLib, name: name),
       );
@@ -890,7 +908,7 @@ Variable _declarationToVariable(
     ctx.pushOp(LoadGlobal.make(gIndex), LoadGlobal.LEN);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
 
-    return Variable.alloc(ctx, type);
+    return Variable.alloc(ctx, type, boxed: type.boxed);
   }
 
   if (decl is! FunctionDeclaration && decl is! ConstructorDeclaration) {
@@ -925,6 +943,7 @@ Variable _declarationToVariable(
     return Variable.alloc(
       ctx,
       CoreTypes.type.ref(ctx),
+      boxed: true,
       concreteTypes: [returnType],
       methodOffset: offset,
       methodReturnType: AlwaysReturnType(returnType, false),
@@ -978,6 +997,7 @@ Variable _declarationToVariable(
     decl is FunctionDeclaration
         ? CoreTypes.function.ref(ctx)
         : CoreTypes.type.ref(ctx),
+    boxed: true,
     concreteTypes: [returnType],
     methodOffset: offset,
     methodReturnType: AlwaysReturnType(returnType, nullable),

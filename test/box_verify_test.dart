@@ -54,6 +54,26 @@ void main() {
       );
     });
 
+    test('Records, closures, equality and postfix ops verify clean', () {
+      // Regression: the box-state sweep (explicit `boxed:` at Variable
+      // construction) corrected several sites whose implicit flag was
+      // untruthful — record field lists, closure arg-type lists, CheckEq
+      // results and postfix-increment slot copies. This exercises them all
+      // with verification on.
+      expect(
+        _runVerified(r'''
+          int main() {
+            final rec = (1, name: 'xy');
+            final f = (int a) => a + rec.$1;
+            var n = f(2);
+            if (n != 4) n++;
+            return n + rec.name.length;
+          }
+        '''),
+        6,
+      );
+    });
+
     test('Extension methods verify clean', () {
       expect(
         _runVerified(r'''

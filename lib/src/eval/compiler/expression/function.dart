@@ -36,7 +36,13 @@ Variable compileFunctionExpression(
   final existingAllocs = 1 + (e.parameters?.parameters.length ?? 0);
   ctx.beginAllocScope(existingAllocLen: existingAllocs, closure: true);
 
-  final $prev = Variable(0, CoreTypes.list.ref(ctx), isFinal: true);
+  // The #prev frame list is stored raw on the frame.
+  final $prev = Variable(
+    0,
+    CoreTypes.list.ref(ctx),
+    boxed: false,
+    isFinal: true,
+  );
 
   ctx.setLocal('#prev', $prev);
 
@@ -81,7 +87,8 @@ Variable compileFunctionExpression(
         type = fType.type!;
       }
     }
-    vRep = Variable(i + 1, type.copyWith(boxed: true))..name = p.name!.lexeme;
+    // Closure arguments always arrive boxed (allowUnboxed: false above).
+    vRep = Variable(i + 1, type, boxed: true)..name = p.name!.lexeme;
 
     ctx.setLocal(vRep.name!, vRep);
 
@@ -207,6 +214,7 @@ Variable compileFunctionExpression(
   return Variable.alloc(
     ctx,
     CoreTypes.function.ref(ctx),
+    boxed: true,
     methodReturnType: AlwaysReturnType(CoreTypes.dynamic.ref(ctx), false),
     methodOffset: DeferredOrOffset(offset: fnOffset),
     callingConvention: CallingConvention.dynamic,

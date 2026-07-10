@@ -21,16 +21,22 @@ import 'offset_tracker.dart';
 /// Usually instantiated with [Variable.alloc] to automate [ScopeContext] updates.
 /// Expression parser in [compileExpression] returns an instance of this class.
 class Variable {
+  /// [boxed] states the runtime representation the caller expects this
+  /// variable's slot to hold (`$Value` wrapper vs raw value). It is stamped
+  /// onto [type], so `type.boxed` always reflects the caller's stated intent
+  /// and cannot silently diverge from an incidentally-flagged type.
   Variable(
     this.scopeFrameOffset,
-    this.type, {
+    TypeRef type, {
+    required bool boxed,
     this.methodOffset,
     this.methodReturnType,
     this.isFinal = false,
     this.concreteTypes = const [],
     CallingConvention? callingConvention,
     this.frameRef,
-  }) : callingConvention =
+  }) : type = type.boxed == boxed ? type : type.copyWith(boxed: boxed),
+       callingConvention =
            callingConvention ??
            ((type == TypeRef(dartCoreFile, 'Function') && methodOffset == null)
                ? CallingConvention.dynamic
@@ -39,9 +45,13 @@ class Variable {
 
   /// Allocates a variable of the given [type] on the scope frame.
   /// Automatically increases the frame offset and [ScopeContext.allocNest].
+  ///
+  /// [boxed] is the caller's explicit statement of the slot's runtime
+  /// representation; it is stamped onto [type] (see [Variable.new]).
   factory Variable.alloc(
     ScopeContext ctx,
     TypeRef type, {
+    required bool boxed,
     DeferredOrOffset? methodOffset,
     ReturnType? methodReturnType,
     bool isFinal = false,
@@ -52,6 +62,7 @@ class Variable {
     return Variable(
       ctx.scopeFrameOffset++,
       type,
+      boxed: boxed,
       methodOffset: methodOffset,
       methodReturnType: methodReturnType,
       isFinal: isFinal,
@@ -196,6 +207,8 @@ class Variable {
     return Variable(
         scopeFrameOffset ?? this.scopeFrameOffset,
         type ?? this.type,
+        // copyWith legitimately carries box-state forward on the type itself.
+        boxed: (type ?? this.type).boxed,
         methodOffset: methodOffset ?? this.methodOffset,
         isFinal: isFinal ?? this.isFinal,
         methodReturnType: methodReturnType ?? this.methodReturnType,
@@ -255,10 +268,10 @@ class Variable {
           PushConstantType.make(concrete.toRuntimeType(ctx).type),
           PushConstantType.LEN,
         );
-        return Variable.alloc(ctx, CoreTypes.type.ref(ctx));
+        return Variable.alloc(ctx, CoreTypes.type.ref(ctx), boxed: true);
       }
       ctx.pushOp(PushRuntimeType.make(scopeFrameOffset), PushRuntimeType.LEN);
-      return Variable.alloc(ctx, CoreTypes.type.ref(ctx));
+      return Variable.alloc(ctx, CoreTypes.type.ref(ctx), boxed: true);
     }
     final rawFieldType = TypeRef.lookupFieldType(
       ctx,
@@ -300,7 +313,9 @@ class Variable {
         );
         final loc = ctx.pushOp(op, PushObjectPropertyImpl.length);
         ctx.offsetTracker.setOffset(loc, offset);
-        return Variable.alloc(ctx, fieldType);
+        // Representation follows the resolved field type (resolveTypeChain
+        // stamps box-state per function-boundary rules).
+        return Variable.alloc(ctx, fieldType, boxed: fieldType.boxed);
       }
     }
     final op = PushObjectProperty.make(
@@ -310,7 +325,7 @@ class Variable {
     ctx.pushOp(op, PushObjectProperty.len(op));
 
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    return Variable.alloc(ctx, fieldType);
+    return Variable.alloc(ctx, fieldType, boxed: fieldType.boxed);
   }
 
   static List<Variable> boxUnboxMultiple(

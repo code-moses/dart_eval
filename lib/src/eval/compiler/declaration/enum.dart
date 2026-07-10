@@ -123,7 +123,8 @@ void compileEnumDeclaration(
       ctx.offsetTracker.setOffset(loc, offset);
     }
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    final V = Variable.alloc(ctx, type);
+    // The constructor returns a boxed enum instance.
+    final V = Variable.alloc(ctx, type, boxed: true);
     final name = '$clsName.$cName';
     final index = ctx.topLevelGlobalIndices[ctx.library]![name]!;
     ctx.pushOp(SetGlobal.make(index, V.scopeFrameOffset), SetGlobal.LEN);
@@ -144,14 +145,15 @@ void compileEnumDeclaration(
   final valuesPos = beginMethod(ctx, d, d.offset, '$clsName.values*i');
   ctx.pushOp(PushList.make(), PushList.LEN);
   // PushList creates a raw list, so track it unboxed; it is boxed below.
-  final listVar = Variable.alloc(ctx, listType.copyWith(boxed: false));
+  final listVar = Variable.alloc(ctx, listType, boxed: false);
   for (final constant in d.body.constants) {
     final cIndex =
         ctx.topLevelGlobalIndices[ctx
             .library]!['$clsName.${constant.name.lexeme}']!;
     ctx.pushOp(LoadGlobal.make(cIndex), LoadGlobal.LEN);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    final elem = Variable.alloc(ctx, type);
+    // Enum constant globals hold boxed instances.
+    final elem = Variable.alloc(ctx, type, boxed: true);
     ctx.pushOp(
       ListAppend.make(listVar.scopeFrameOffset, elem.scopeFrameOffset),
       ListAppend.LEN,
@@ -179,7 +181,7 @@ void compileEnumDeclaration(
   if (!hasUserToString) {
     ctx.resetStack(position: 1);
     final toStringPos = beginMethod(ctx, d, d.offset, '$clsName.toString()');
-    final thisVar = Variable(0, type);
+    final thisVar = Variable(0, type, boxed: true);
     final nameVal = thisVar.getProperty(ctx, 'name');
     final prefix = BuiltinValue(stringval: '$clsName.').push(ctx);
     final str = prefix.invoke(ctx, '+', [nameVal]).result;

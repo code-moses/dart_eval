@@ -29,7 +29,7 @@ void setupAsyncFunction(CompilerContext ctx) {
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
   ctx.setLocal(
     '#completer',
-    Variable.alloc(ctx, AsyncTypes.completer.ref(ctx)),
+    Variable.alloc(ctx, AsyncTypes.completer.ref(ctx), boxed: true),
   );
   ctx.nearestAsyncFrame = ctx.locals.length - 1;
 }

@@ -106,7 +106,8 @@ Variable invokeExtensionGetter(
   final loc = ctx.pushOp(Call.make(-1), Call.length);
   ctx.offsetTracker.setOffset(loc, offset);
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-  return Variable.alloc(ctx, extensionReturnType(ctx, ext));
+  final retType = extensionReturnType(ctx, ext);
+  return Variable.alloc(ctx, retType, boxed: retType.boxed);
 }
 
 /// The type a call to extension member [ext] evaluates to, with boxing that
@@ -164,7 +165,7 @@ int compileExtensionMethod(
   ctx.scopeFrameOffset += d.parameters?.parameters.length ?? 0;
   // `#this` is the receiver, at slot 0. Inside the body `this` and bare member
   // access resolve against it (see reference.dart's extension-this fallback).
-  ctx.setLocal('#this', Variable(0, onType.copyWith(boxed: true)));
+  ctx.setLocal('#this', Variable(0, onType, boxed: true));
   final savedExtensionThis = ctx.currentExtensionThis;
   ctx.currentExtensionThis = onType.copyWith(boxed: true);
 
@@ -181,13 +182,10 @@ int compileExtensionMethod(
     final p = param.parameter;
     var type = CoreTypes.dynamic.ref(ctx);
     if (p.type != null) {
-      type = TypeRef.fromAnnotation(
-        ctx,
-        ctx.library,
-        p.type!,
-      ).copyWith(boxed: true);
+      type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
     }
-    ctx.setLocal(p.name!.lexeme, Variable(i, type));
+    // Like method args, extension member args are always boxed.
+    ctx.setLocal(p.name!.lexeme, Variable(i, type, boxed: true));
     i++;
   }
 

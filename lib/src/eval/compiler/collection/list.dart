@@ -56,8 +56,8 @@ Variable compileListLiteral(
         .ref(ctx)
         .copyWith(
           specifiedTypeArgs: [listSpecifiedType ?? CoreTypes.dynamic.ref(ctx)],
-          boxed: false,
         ),
+    boxed: false,
   );
 
   ctx.beginAllocScope();
@@ -79,13 +79,13 @@ Variable compileListLiteral(
       CoreTypes.list
           .ref(ctx)
           .copyWith(
-            boxed: false,
             specifiedTypeArgs: [
               resultTypes.isEmpty
                   ? CoreTypes.dynamic.ref(ctx)
                   : TypeRef.commonBaseType(ctx, resultTypes.toSet()),
             ],
           ),
+      boxed: false,
     );
   }
 
@@ -103,7 +103,7 @@ Variable boxListContents(CompilerContext ctx, Variable list) {
       $1 = BuiltinValue(intval: 1).push(ctx);
 
       // final len = list.length;
-      len = Variable.alloc(ctx, CoreTypes.int.ref(ctx).copyWith(boxed: false));
+      len = Variable.alloc(ctx, CoreTypes.int.ref(ctx), boxed: false);
       ctx.pushOp(
         PushIterableLength.make(list.scopeFrameOffset),
         PushIterableLength.LEN,
@@ -117,19 +117,16 @@ Variable boxListContents(CompilerContext ctx, Variable list) {
         CoreTypes.list
             .ref(ctx)
             .copyWith(
-              boxed: true,
               specifiedTypeArgs: [
                 list.type.specifiedTypeArgs[0].copyWith(boxed: true),
               ],
             ),
+        boxed: true,
       );
     },
     condition: (ctx) {
       // i < len
-      final v = Variable.alloc(
-        ctx,
-        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-      );
+      final v = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
       ctx.pushOp(
         NumLt.make($i.scopeFrameOffset, len.scopeFrameOffset),
         NumLt.LEN,
@@ -137,7 +134,8 @@ Variable boxListContents(CompilerContext ctx, Variable list) {
       return v;
     },
     body: (ctx, rt) {
-      final v = Variable.alloc(ctx, list.type.specifiedTypeArgs[0]);
+      final elementType = list.type.specifiedTypeArgs[0];
+      final v = Variable.alloc(ctx, elementType, boxed: elementType.boxed);
       ctx.pushOp(
         IndexList.make(list.scopeFrameOffset, $i.scopeFrameOffset),
         IndexList.LEN,
@@ -150,10 +148,7 @@ Variable boxListContents(CompilerContext ctx, Variable list) {
       return StatementInfo(-1);
     },
     update: (ctx) {
-      final ip1 = Variable.alloc(
-        ctx,
-        CoreTypes.int.ref(ctx).copyWith(boxed: false),
-      );
+      final ip1 = Variable.alloc(ctx, CoreTypes.int.ref(ctx), boxed: false);
       ctx.pushOp(
         NumAdd.make($i.scopeFrameOffset, $1.scopeFrameOffset),
         NumAdd.LEN,
@@ -179,6 +174,8 @@ Variable boxListContents(CompilerContext ctx, Variable list) {
           list.type.specifiedTypeArgs[0].copyWith(boxed: true),
         ],
       ),
+      // Only the contents were boxed; the list itself keeps its representation.
+      boxed: list.type.boxed,
     )
     ..name = list.name
     ..frameIndex = list.frameIndex;

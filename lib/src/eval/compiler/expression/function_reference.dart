@@ -27,6 +27,7 @@ Variable compileFunctionReference(FunctionReference e, CompilerContext ctx) {
       return Variable.alloc(
         ctx,
         CoreTypes.type.ref(ctx),
+        boxed: true,
         concreteTypes: [parameterized],
       );
     }

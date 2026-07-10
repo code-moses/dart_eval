@@ -327,9 +327,8 @@ class CompilerContext with ScopeContext {
 
           final frameListVar = Variable(
             frOffset,
-            CoreTypes.list
-                .ref(this)
-                .copyWith(boxed: false, specifiedTypeArgs: [v.type]),
+            CoreTypes.list.ref(this).copyWith(specifiedTypeArgs: [v.type]),
+            boxed: false,
           );
           return v.copyWith(
             scopeFrameOffset: scopeFrameOffset++,

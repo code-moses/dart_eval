@@ -37,10 +37,7 @@ extension Invoke on Variable {
         supportedBoolIntrinsicOps.contains(method)) {
       final $this = unboxIfNeeded(ctx);
       ctx.pushOp(LogicalNot.make($this.scopeFrameOffset), LogicalNot.LEN);
-      var result = Variable.alloc(
-        ctx,
-        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-      );
+      var result = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
       return InvokeResult($this, result, []);
     }
 
@@ -81,7 +78,8 @@ extension Invoke on Variable {
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
 
     if (checkNotEq) {
-      final res = Variable.alloc(ctx, CoreTypes.bool.ref(ctx));
+      // CheckEq pushes a raw bool.
+      final res = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
       ctx.pushOp(LogicalNot.make(res.scopeFrameOffset), LogicalNot.LEN);
     }
 
@@ -102,9 +100,8 @@ extension Invoke on Variable {
 
     final v = Variable.alloc(
       ctx,
-      (returnType?.type ?? CoreTypes.dynamic.ref(ctx)).copyWith(
-        boxed: !(checkEq || checkNotEq),
-      ),
+      returnType?.type ?? CoreTypes.dynamic.ref(ctx),
+      boxed: !(checkEq || checkNotEq),
     );
     return InvokeResult($this, v, args0);
   }
@@ -173,7 +170,8 @@ extension Invoke on Variable {
         CoreTypes.dynamic.ref(ctx);
     final v = Variable.alloc(
       ctx,
-      returnType.copyWith(boxed: !returnType.isUnboxedAcrossFunctionBoundaries),
+      returnType,
+      boxed: !returnType.isUnboxedAcrossFunctionBoundaries,
     );
 
     return InvokeResult($this, v, args, namedArgs: namedArgs ?? {});
@@ -211,7 +209,7 @@ extension Invoke on Variable {
           NumAdd.make($this.scopeFrameOffset, R.scopeFrameOffset),
           NumAdd.LEN,
         );
-        result = Variable.alloc(ctx, numericResultType.copyWith(boxed: false));
+        result = Variable.alloc(ctx, numericResultType, boxed: false);
         break;
       case '-':
         // Num intrinsic sub
@@ -219,7 +217,7 @@ extension Invoke on Variable {
           NumSub.make($this.scopeFrameOffset, R.scopeFrameOffset),
           NumSub.LEN,
         );
-        result = Variable.alloc(ctx, numericResultType.copyWith(boxed: false));
+        result = Variable.alloc(ctx, numericResultType, boxed: false);
         break;
 
       case '<':
@@ -228,10 +226,7 @@ extension Invoke on Variable {
           NumLt.make($this.scopeFrameOffset, R.scopeFrameOffset),
           NumLt.LEN,
         );
-        result = Variable.alloc(
-          ctx,
-          CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-        );
+        result = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
         break;
       case '>':
         // Num intrinsic greater than
@@ -239,10 +234,7 @@ extension Invoke on Variable {
           NumLt.make(R.scopeFrameOffset, $this.scopeFrameOffset),
           NumLtEq.LEN,
         );
-        result = Variable.alloc(
-          ctx,
-          CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-        );
+        result = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
         break;
       case '<=':
         // Num intrinsic less than equal to
@@ -250,10 +242,7 @@ extension Invoke on Variable {
           NumLtEq.make($this.scopeFrameOffset, R.scopeFrameOffset),
           NumLtEq.LEN,
         );
-        result = Variable.alloc(
-          ctx,
-          CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-        );
+        result = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
         break;
       case '>=':
         // Num intrinsic greater than equal to
@@ -261,10 +250,7 @@ extension Invoke on Variable {
           NumLtEq.make(R.scopeFrameOffset, $this.scopeFrameOffset),
           NumLt.LEN,
         );
-        result = Variable.alloc(
-          ctx,
-          CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-        );
+        result = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
         break;
 
       default:
