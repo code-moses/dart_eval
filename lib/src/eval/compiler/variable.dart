@@ -25,6 +25,14 @@ class Variable {
   /// variable's slot to hold (`$Value` wrapper vs raw value). It is stamped
   /// onto [type], so `type.boxed` always reflects the caller's stated intent
   /// and cannot silently diverge from an incidentally-flagged type.
+  ///
+  /// [callingConvention] is derived here as the single source of truth — call
+  /// sites switch on it alone rather than re-deriving it. A `Function`-typed
+  /// value with no known method offset can only be a closure, which must be
+  /// invoked with [CallingConvention.dynamic]; there is nothing to statically
+  /// dispatch to, so that combination is forced dynamic even if a stale
+  /// convention is carried in (e.g. via [copyWith] retyping a variable).
+  /// Otherwise the stated convention is respected, defaulting to static.
   Variable(
     this.scopeFrameOffset,
     TypeRef type, {
@@ -37,10 +45,9 @@ class Variable {
     this.frameRef,
   }) : type = type.boxed == boxed ? type : type.copyWith(boxed: boxed),
        callingConvention =
-           callingConvention ??
-           ((type == TypeRef(dartCoreFile, 'Function') && methodOffset == null)
-               ? CallingConvention.dynamic
-               : CallingConvention.static) /*,
+           (type == TypeRef(dartCoreFile, 'Function') && methodOffset == null)
+           ? CallingConvention.dynamic
+           : (callingConvention ?? CallingConvention.static) /*,
         todo: assert(!type.nullable || type.boxed)*/;
 
   /// Allocates a variable of the given [type] on the scope frame.
@@ -56,7 +63,7 @@ class Variable {
     ReturnType? methodReturnType,
     bool isFinal = false,
     List<TypeRef> concreteTypes = const [],
-    CallingConvention callingConvention = CallingConvention.static,
+    CallingConvention? callingConvention,
   }) {
     ctx.allocNest.last++;
     return Variable(

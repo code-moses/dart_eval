@@ -2,7 +2,6 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/bridge/declaration.dart';
 import 'package:dart_eval/src/eval/compiler/dispatch.dart';
-import 'package:dart_eval/src/eval/compiler/expression/function.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/runtime/runtime.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
@@ -398,7 +397,6 @@ class IdentifierReference implements Reference {
                 name: _refName,
                 targetScopeFrameOffset: $this.scopeFrameOffset,
               ),
-              callingConvention: CallingConvention.static,
             );
           }
         }

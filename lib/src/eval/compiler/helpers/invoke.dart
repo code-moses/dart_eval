@@ -119,8 +119,7 @@ extension Invoke on Variable {
 
     var $this = this;
 
-    if (callingConvention == CallingConvention.dynamic ||
-        (type == CoreTypes.function.ref(ctx) && methodOffset == null)) {
+    if (callingConvention == CallingConvention.dynamic) {
       final result = invokeClosure(
         ctx,
         null,
