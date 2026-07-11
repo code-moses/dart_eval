@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/offset_tracker.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
@@ -103,8 +104,7 @@ Variable invokeExtensionGetter(
   final r = receiver.boxIfNeeded(ctx);
   ctx.pushOp(PushArg.make(r.scopeFrameOffset), PushArg.LEN);
   final offset = DeferredOrOffset(file: ext.extension.library, name: ext.key);
-  final loc = ctx.pushOp(Call.make(-1), Call.length);
-  ctx.offsetTracker.setOffset(loc, offset);
+  pushCall(ctx, offset);
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
   final retType = extensionReturnType(ctx, ext);
   return Variable.alloc(ctx, retType, boxed: retType.boxed);

@@ -4,6 +4,7 @@ import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/constructor.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/declaration.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/argument_list.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
@@ -118,10 +119,7 @@ void compileEnumDeclaration(
       );
     }
 
-    final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-    if (offset.offset == null) {
-      ctx.offsetTracker.setOffset(loc, offset);
-    }
+    pushCall(ctx, offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
     // The constructor returns a boxed enum instance.
     final V = Variable.alloc(ctx, type, boxed: true);

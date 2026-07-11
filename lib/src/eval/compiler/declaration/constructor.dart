@@ -3,6 +3,7 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/bridge/declaration.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
 import 'package:dart_eval/src/eval/compiler/expression/method_invocation.dart';
@@ -220,10 +221,7 @@ void compileConstructorDeclaration(
       clsType.name,
       name,
     );
-    final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-    if (offset.offset == null) {
-      ctx.offsetTracker.setOffset(loc, offset);
-    }
+    pushCall(ctx, offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
     // The redirected constructor returns a boxed instance.
     final V = Variable.alloc(ctx, clsType, boxed: true);
@@ -327,10 +325,7 @@ void compileConstructorDeclaration(
       }
 
       final offset = method.methodOffset!;
-      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-      if (offset.offset == null) {
-        ctx.offsetTracker.setOffset(loc, offset);
-      }
+      pushCall(ctx, offset);
 
       mReturnType =
           method.methodReturnType?.toAlwaysReturnType(
@@ -564,10 +559,7 @@ void compileDefaultConstructor(
       }
 
       final offset = method.methodOffset!;
-      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-      if (offset.offset == null) {
-        ctx.offsetTracker.setOffset(loc, offset);
-      }
+      pushCall(ctx, offset);
       final clsType = TypeRef.lookupDeclaration(ctx, ctx.library, parent);
       mReturnType =
           method.methodReturnType?.toAlwaysReturnType(

@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
@@ -124,8 +125,7 @@ InvokeResult invokeClosure(
   var sd = closureRef?.getStaticDispatch(ctx);
   if (sd != null) {
     // Use static dispatch
-    final loc = ctx.pushOp(Call.make(sd.offset.offset ?? -1), Call.length);
-    ctx.offsetTracker.setOffset(loc, sd.offset);
+    pushCall(ctx, sd.offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
     final res = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx), boxed: true);
     return InvokeResult(null, res, positionalArgs, namedArgs: namedArgs);

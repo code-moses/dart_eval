@@ -2,8 +2,8 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
-import 'package:dart_eval/src/eval/compiler/expression/function.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/fpl.dart';
 import 'package:dart_eval/src/eval/compiler/offset_tracker.dart';
 import 'package:dart_eval/src/eval/compiler/scope.dart';
@@ -138,13 +138,7 @@ extension TearOff on Variable {
       );
       ctx.pushOp(invokeOp, InvokeDynamic.len(invokeOp));
     } else {
-      final loc = ctx.pushOp(
-        Call.make(methodOffset!.offset ?? -1),
-        Call.length,
-      );
-      if (methodOffset!.offset == null) {
-        ctx.offsetTracker.setOffset(loc, methodOffset!);
-      }
+      pushCall(ctx, methodOffset!);
     }
 
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
