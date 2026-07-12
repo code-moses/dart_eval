@@ -46,16 +46,16 @@ class PushConstantInt implements EvcOp {
   String toString() => 'PushConstantInt ($_value)';
 }
 
-/// Appends an unboxed float32 (as Dart double) value to the runtime frame.
+/// Appends an unboxed double value to the runtime frame.
 /// See [BoxDouble] for boxing it.
 class PushConstantDouble implements EvcOp {
-  PushConstantDouble(Runtime exec) : _value = exec._readFloat32();
+  PushConstantDouble(Runtime exec) : _value = exec._readFloat64();
 
   PushConstantDouble.make(this._value);
 
   final double _value;
 
-  static const int LEN = Evc.BASE_OPLEN + Evc.F32_LEN;
+  static const int LEN = Evc.BASE_OPLEN + Evc.F64_LEN;
 
   // Set value at position to constant
   @override

@@ -681,7 +681,7 @@ class Runtime {
       case SetAdd op:
         return [Evc.OP_SET_ADD, ...Evc.i16b(op._set), ...Evc.i16b(op._value)];
       case PushConstantDouble op:
-        return [Evc.OP_PUSH_DOUBLE, ...Evc.f32b(op._value)];
+        return [Evc.OP_PUSH_DOUBLE, ...Evc.f64b(op._value)];
       case SetGlobal op:
         return [
           Evc.OP_SET_GLOBAL,
@@ -946,9 +946,9 @@ class Runtime {
   }
 
   @pragma('vm:always-inline')
-  double _readFloat32() {
-    final i = _evc.getFloat32(_offset);
-    _offset += 4;
+  double _readFloat64() {
+    final i = _evc.getFloat64(_offset);
+    _offset += 8;
     return i;
   }
 
