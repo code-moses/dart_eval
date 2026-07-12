@@ -55,6 +55,6 @@ void main() {
         result is $String ? result.$reified : result,
         'caught NoSuchMethodError',
       );
-    }, skip: true);
+    });
   });
 }
