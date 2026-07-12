@@ -243,6 +243,11 @@ class CompilerContext with ScopeContext {
   List<ContextSaveState> typeUninferenceSaveStates = [];
   List<CompilerLabel> labels = [];
   Map<CompilerLabel, Set<int>> labelReferences = {};
+
+  /// Forward jumps emitted by `continue` statements, keyed by their loop
+  /// label; resolved by [resolveContinueReferences] to the loop's
+  /// update/condition section.
+  Map<CompilerLabel, Set<int>> continueReferences = {};
   final List<Variable> caughtExceptions = [];
   PrescanContext? preScan;
 
@@ -424,6 +429,18 @@ class CompilerContext with ScopeContext {
 
   void resolveLabel(CompilerLabel label) {
     final references = labelReferences[label];
+    if (references != null) {
+      for (final ref in references) {
+        final jump = JumpConstant.make(out.length);
+        rewriteOp(ref, jump, 0);
+      }
+    }
+  }
+
+  /// Rewrites the `continue` jumps registered for [label] to the current
+  /// program position (the loop's update/condition section).
+  void resolveContinueReferences(CompilerLabel label) {
+    final references = continueReferences[label];
     if (references != null) {
       for (final ref in references) {
         final jump = JumpConstant.make(out.length);

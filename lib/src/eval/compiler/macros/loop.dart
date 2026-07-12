@@ -68,6 +68,10 @@ StatementInfo macroLoop(
   final statementResult = body(ctx, expectedReturnType);
   ctx.labels.removeLast();
 
+  // `continue` jumps here: past the body, into the update (for-loops) or
+  // trailing condition (do-while) before looping back around.
+  ctx.resolveContinueReferences(label);
+
   if (!(statementResult.willAlwaysThrow || statementResult.willAlwaysReturn)) {
     if (update != null && !updateBeforeBody) {
       update(ctx);
@@ -78,6 +82,10 @@ StatementInfo macroLoop(
       conditionResult = condition(ctx).unboxIfNeeded(ctx);
       rewriteCond = JumpIfFalse.make(conditionResult.scopeFrameOffset, -1);
       rewritePos = ctx.pushOp(rewriteCond, JumpIfFalse.LEN);
+      // On exit (condition false) the jump skips this scope's Pop below,
+      // leaving the final iteration's allocations on the frame. Pop them at
+      // the loop exit landing point (endAllocScope popAdjust) instead.
+      pops = ctx.peekAllocPops();
     }
 
     ctx.endAllocScope();
