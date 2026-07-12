@@ -280,8 +280,8 @@ class $Set<E> implements Set<E>, $Instance {
 
   static $Value? _add(Runtime runtime, $Value? target, List<$Value?> args) {
     final value = args[0]!;
-    (target!.$value as Set).add(value);
-    return null;
+    // Set.add reports whether the value was actually added (not a duplicate).
+    return $bool((target!.$value as Set).add(value));
   }
 
   static const $Function __addAll = $Function(_addAll);
