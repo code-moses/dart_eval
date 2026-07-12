@@ -128,6 +128,11 @@ Variable? compileExpressionAndDiscardResult(
   if (canReference(e)) {
     compileExpressionAsReference(e, ctx, cascadeTarget: cascadeTarget);
     return null;
+  } else if (e is AssignmentExpression && cascadeTarget != null) {
+    // A cascade section like `..a = 1`: the assignment target must resolve
+    // against the existing cascade target, not recompile the target
+    // expression (which would create and mutate a fresh instance).
+    return compileAssignmentExpression(e, ctx, cascadeTarget: cascadeTarget);
   } else {
     return compileExpression(e, ctx, bound);
   }

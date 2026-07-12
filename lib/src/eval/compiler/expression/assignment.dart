@@ -10,9 +10,14 @@ import 'package:dart_eval/src/eval/compiler/variable.dart';
 
 Variable compileAssignmentExpression(
   AssignmentExpression e,
-  CompilerContext ctx,
-) {
-  final L = compileExpressionAsReference(e.leftHandSide, ctx);
+  CompilerContext ctx, {
+  Variable? cascadeTarget,
+}) {
+  final L = compileExpressionAsReference(
+    e.leftHandSide,
+    ctx,
+    cascadeTarget: cascadeTarget,
+  );
 
   if (e.operator.type == TokenType.EQ) {
     final R = compileExpression(
