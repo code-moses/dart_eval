@@ -67,7 +67,7 @@ void main() {
         $List.view(list, (e) => $WrapTest.wrap(e)),
       ]);
       expect(result, equals(2));
-    }, skip: true);
+    });
   });
 }
 

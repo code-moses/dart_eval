@@ -266,6 +266,16 @@ class BoxString implements EvcOp {
   String toString() => 'BoxString (L$_reg)';
 }
 
+/// Resolves a frame value expected to hold a list in its unboxed
+/// representation. Normally that is a raw [List] of boxed elements (or a
+/// [$List], whose List interface exposes them), but a [$ValueView] wrapper
+/// (e.g. [$List.view]) must be accessed through its [$unboxedView] so that
+/// elements stay wrapped on read and writes reach the backing list.
+/// Host-passed arguments skip the [Unbox] op, so the check happens at each
+/// list op rather than only at unbox transitions.
+List _listOnFrame(Object? value) =>
+    value is $ValueView ? value.$unboxedView as List : value as List;
+
 /// Boxes a list at the given location on the runtime frame.
 /// Expects all elements of the list already boxed, inheriting
 /// from [$Value].
@@ -281,7 +291,9 @@ class BoxList implements EvcOp {
   @override
   void run(Runtime runtime) {
     final reg = _reg;
-    runtime.frame[reg] = $List.wrap(<$Value>[...(runtime.frame[reg] as List)]);
+    runtime.frame[reg] = $List.wrap(<$Value>[
+      ..._listOnFrame(runtime.frame[reg]),
+    ]);
   }
 
   @override
@@ -394,7 +406,10 @@ class Unbox implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.frame[_reg] = (runtime.frame[_reg] as $Value).$value;
+    final value = runtime.frame[_reg] as $Value;
+    runtime.frame[_reg] = value is $ValueView
+        ? value.$unboxedView
+        : value.$value;
   }
 
   @override
@@ -435,7 +450,7 @@ class ListAppend extends EvcOp {
 
   @override
   void run(Runtime runtime) {
-    (runtime.frame[_reg] as List).add(runtime.frame[_value]);
+    _listOnFrame(runtime.frame[_reg]).add(runtime.frame[_value]);
   }
 
   @override
@@ -459,8 +474,9 @@ class IndexList extends EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.frame[runtime.frameOffset++] =
-        (runtime.frame[_position] as List)[runtime.frame[_index] as int];
+    runtime.frame[runtime.frameOffset++] = _listOnFrame(
+      runtime.frame[_position],
+    )[runtime.frame[_index] as int];
   }
 
   @override
@@ -488,7 +504,7 @@ class ListSetIndexed extends EvcOp {
   @override
   void run(Runtime runtime) {
     final frame = runtime.frame;
-    (frame[_position] as List)[frame[_index] as int] = frame[_value];
+    _listOnFrame(frame[_position])[frame[_index] as int] = frame[_value];
   }
 
   @override

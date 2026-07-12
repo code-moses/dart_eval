@@ -25,6 +25,17 @@ abstract class $Value {
   dynamic get $reified;
 }
 
+/// A [$Value] wrapper whose unboxed representation must preserve the
+/// wrapper's access semantics rather than expose the raw [$value] directly.
+/// The [Unbox] op stores [$unboxedView] on the frame instead of [$value].
+/// For example, unboxing a [$List.view] must keep wrapping elements lazily on
+/// read (and writing raw values back on write); its raw backing list holds
+/// unwrapped elements the runtime could not otherwise interpret.
+abstract class $ValueView implements $Value {
+  /// The representation to place on the frame when this value is unboxed.
+  dynamic get $unboxedView;
+}
+
 /// Interface for objects with properties and methods. Given the nature
 /// of Dart (that virtually everything is an object), most classes
 /// (including wrappers) implement this interface.
