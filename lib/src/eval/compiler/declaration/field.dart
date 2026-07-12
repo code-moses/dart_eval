@@ -76,7 +76,11 @@ void compileFieldDeclaration(
       ctx.instanceGetterIndices[ctx.library]![parentName]![fieldName] =
           fieldIndex0;
 
-      if (!(field.isFinal || field.isConst)) {
+      // A `late final` field with no initializer is assignable (once) in
+      // Dart, so it needs a setter like a non-final field. (The once-only
+      // runtime check is not enforced.)
+      final assignableLate = d.fields.isLate && field.initializer == null;
+      if (!(field.isFinal || field.isConst) || assignableLate) {
         final setterPos = beginMethod(
           ctx,
           d,
