@@ -57,8 +57,8 @@ void main() {
         },
       });
 
-      expect(runtime.executeLib('package:operator_test/main.dart', 'main'), 4);
-    }, skip: true);
+      expect(runtime.executeLib('package:operator_test/main.dart', 'main'), 2);
+    });
 
     test('Operator []', () {
       final runtime = compiler.compileWriteAndLoad({
@@ -86,10 +86,10 @@ void main() {
       });
 
       expect(runtime.executeLib('package:operator_test/main.dart', 'main'), [
-        $int(1),
+        $int(3),
         $int(2),
       ]);
-    }, skip: true);
+    });
 
     test('Operator * on String', () {
       final runtime = compiler.compileWriteAndLoad({
