@@ -27,9 +27,9 @@ class Variable {
   /// and cannot silently diverge from an incidentally-flagged type.
   ///
   /// [callingConvention] is derived here as the single source of truth — call
-  /// sites switch on it alone rather than re-deriving it. A `Function`-typed
-  /// value with no known method offset can only be a closure, which must be
-  /// invoked with [CallingConvention.dynamic]; there is nothing to statically
+  /// sites switch on it alone rather than re-deriving it. A `Function`- or
+  /// `dynamic`-typed value with no known method offset can only be invoked
+  /// through [CallingConvention.dynamic]; there is nothing to statically
   /// dispatch to, so that combination is forced dynamic even if a stale
   /// convention is carried in (e.g. via [copyWith] retyping a variable).
   /// Otherwise the stated convention is respected, defaulting to static.
@@ -45,7 +45,9 @@ class Variable {
     this.frameRef,
   }) : type = type.boxed == boxed ? type : type.copyWith(boxed: boxed),
        callingConvention =
-           (type == TypeRef(dartCoreFile, 'Function') && methodOffset == null)
+           ((type == TypeRef(dartCoreFile, 'Function') ||
+                    type == TypeRef(dartCoreFile, 'dynamic')) &&
+               methodOffset == null)
            ? CallingConvention.dynamic
            : (callingConvention ?? CallingConvention.static) /*,
         todo: assert(!type.nullable || type.boxed)*/;
