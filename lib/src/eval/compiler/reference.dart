@@ -247,6 +247,37 @@ class IdentifierReference implements Reference {
         ctx.pushOp(op, SetObjectProperty.len(op));
         return value;
       }
+
+      // A bare identifier in a class body may also target a static field of
+      // the enclosing class (mirrors the static branch in [getValue]).
+      final staticDeclaration = resolveStaticDeclaration(
+        ctx,
+        ctx.library,
+        ctx.currentClassName!,
+        name,
+      );
+      if (staticDeclaration?.declaration is VariableDeclaration) {
+        final staticDec =
+            staticDeclaration!.declaration! as VariableDeclaration;
+        final fqName = '${ctx.currentClassName!}.${staticDec.name.lexeme}';
+        final type = ctx.topLevelVariableInferredTypes[ctx.library]![fqName]!;
+        final gIndex = ctx.topLevelGlobalIndices[ctx.library]![fqName]!;
+        if (!value.type.resolveTypeChain(ctx).isAssignableTo(ctx, type)) {
+          throw CompileError(
+            'Cannot assign value of type ${value.type} to static field '
+            '"$name" of type $type',
+            source,
+          );
+        }
+        final formattedValue = type.boxed
+            ? value.boxIfNeeded(ctx, source)
+            : value.unboxIfNeeded(ctx);
+        ctx.pushOp(
+          SetGlobal.make(gIndex, formattedValue.scopeFrameOffset),
+          SetGlobal.LEN,
+        );
+        return formattedValue;
+      }
     }
 
     final declaration =
