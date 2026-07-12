@@ -181,6 +181,20 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
     {},
   );
 
+  // Dart's `/` always produces a double and `~/` always an int, regardless
+  // of the operand types.
+  final divisionOp = KnownMethod(
+    AlwaysReturnType(CoreTypes.double.ref(ctx), false),
+    [KnownMethodArg('other', CoreTypes.num.ref(ctx), false)],
+    {},
+  );
+
+  final truncDivisionOp = KnownMethod(
+    AlwaysReturnType(CoreTypes.int.ref(ctx), false),
+    [KnownMethodArg('other', CoreTypes.num.ref(ctx), false)],
+    {},
+  );
+
   final intUnaryOp = KnownMethod(
     AlwaysReturnType(CoreTypes.int.ref(ctx), false),
     [],
@@ -207,11 +221,11 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       '-': intBinaryOp,
       'unary-': intUnaryOp,
       '*': intBinaryOp,
-      '/': intBinaryOp,
+      '/': divisionOp,
       '%': intBinaryOp,
       '|': intBitwiseOp,
       '&': intBitwiseOp,
-      '~/': intBinaryOp,
+      '~/': truncDivisionOp,
       '<<': intBitwiseOp,
       '>>': intBitwiseOp,
       '^': intBitwiseOp,
@@ -229,9 +243,9 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       '-': doubleBinaryOp,
       'unary-': doubleUnaryOp,
       '*': doubleBinaryOp,
-      '/': doubleBinaryOp,
+      '/': divisionOp,
       '%': doubleBinaryOp,
-      '~/': doubleBinaryOp,
+      '~/': truncDivisionOp,
       '<': numComparisonOp,
       '>': numComparisonOp,
       '<=': numComparisonOp,
@@ -246,8 +260,8 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       '-': numBinaryOp,
       'unary-': numUnaryOp,
       '*': numBinaryOp,
-      '/': numBinaryOp,
-      '~/': numBinaryOp,
+      '/': divisionOp,
+      '~/': truncDivisionOp,
       '%': numBinaryOp,
       '<': numComparisonOp,
       '>': numComparisonOp,

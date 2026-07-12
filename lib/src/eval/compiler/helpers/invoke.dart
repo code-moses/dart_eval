@@ -192,9 +192,14 @@ extension Invoke on Variable {
     }
 
     // For numeric ops, determine result type from concrete operand types.
-    // Avoids widening to dynamic when one operand is dynamic.
+    // Avoids widening to dynamic when one operand is dynamic. Per Dart's
+    // numeric rules a double operand makes the result double (double + int is
+    // double, not their common base num).
     final numericResultType = R.type == CoreTypes.dynamic.ref(ctx)
         ? $this.type
+        : ($this.type == CoreTypes.double.ref(ctx) ||
+              R.type == CoreTypes.double.ref(ctx))
+        ? CoreTypes.double.ref(ctx)
         : TypeRef.commonBaseType(ctx, {$this.type, R.type});
 
     Variable result;
