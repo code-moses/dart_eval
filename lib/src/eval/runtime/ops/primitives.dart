@@ -267,14 +267,17 @@ class BoxString implements EvcOp {
 }
 
 /// Resolves a frame value expected to hold a list in its unboxed
-/// representation. Normally that is a raw [List] of boxed elements (or a
-/// [$List], whose List interface exposes them), but a [$ValueView] wrapper
-/// (e.g. [$List.view]) must be accessed through its [$unboxedView] so that
-/// elements stay wrapped on read and writes reach the backing list.
-/// Host-passed arguments skip the [Unbox] op, so the check happens at each
-/// list op rather than only at unbox transitions.
-List _listOnFrame(Object? value) =>
-    value is $ValueView ? value.$unboxedView as List : value as List;
+/// representation. Normally that is a raw [List] of boxed elements, but
+/// host-passed arguments skip the [Unbox] op, so a slot may also hold a
+/// boxed wrapper: a [$ValueView] (e.g. [$List.view]) is accessed through its
+/// [$unboxedView] so elements stay wrapped on read and writes reach the
+/// backing list, and any other [$Value] (e.g. [$List]) through its backing
+/// [$value] list so wrapping it again cannot double-box.
+List _listOnFrame(Object? value) => value is $ValueView
+    ? value.$unboxedView as List
+    : value is $Value
+    ? value.$value as List
+    : value as List;
 
 /// Boxes a list at the given location on the runtime frame.
 /// Expects all elements of the list already boxed, inheriting
@@ -291,9 +294,10 @@ class BoxList implements EvcOp {
   @override
   void run(Runtime runtime) {
     final reg = _reg;
-    runtime.frame[reg] = $List.wrap(<$Value>[
-      ..._listOnFrame(runtime.frame[reg]),
-    ]);
+    // Wrap the list itself rather than a copy: a boxed list must stay
+    // aliased with its unboxed representation so mutations through either
+    // are visible in both, matching Dart reference semantics.
+    runtime.frame[reg] = $List.wrap(_listOnFrame(runtime.frame[reg]));
   }
 
   @override
