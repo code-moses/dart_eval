@@ -572,7 +572,9 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
       _ctx.typeTypes.add(type.resolveTypeChain(_ctx).getRuntimeIndices(_ctx));
     }
 
-    final globalInitializers = List<int>.filled(_ctx.globalIndex, 0);
+    // -1 marks a global with no initializer (e.g. `static Foo? x;`), which
+    // must read as null rather than jump to bytecode offset 0.
+    final globalInitializers = List<int>.filled(_ctx.globalIndex, -1);
 
     for (final gi in _ctx.runtimeGlobalInitializerMap.entries) {
       globalInitializers[gi.key] = gi.value;

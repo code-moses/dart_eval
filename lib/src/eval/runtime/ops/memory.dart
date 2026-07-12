@@ -108,9 +108,16 @@ class LoadGlobal implements EvcOp {
   void run(Runtime runtime) {
     var value = runtime.globals[_index];
     if (value == null) {
+      final initializer = runtime.globalInitializers[_index];
+      if (initializer < 0) {
+        // The global has no initializer (e.g. an unassigned nullable static
+        // field); it reads as null.
+        runtime.returnValue = null;
+        return;
+      }
       runtime.callStack.add(runtime._prOffset);
       runtime.catchStack.add([]);
-      runtime._prOffset = runtime.globalInitializers[_index];
+      runtime._prOffset = initializer;
     } else {
       runtime.returnValue = value;
     }
