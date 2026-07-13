@@ -9,11 +9,15 @@
 > This fork ([code-moses/dart_eval](https://github.com/code-moses/dart_eval)) is ahead of
 > [ethanblake4/dart_eval](https://github.com/ethanblake4/dart_eval) by the following changes:
 >
-> **Opt-in feature**
+> **Opt-in features**
 > - `Compiler.softNullableCasts`: C#-style soft casts — when enabled, a failed cast to a
 >   *nullable* type (`myValue as MyType?`) evaluates to null instead of throwing, composing
 >   with `??` and `?.`. Casts to non-nullable types remain strict. Defaults to off (standard
 >   Dart semantics).
+> - `Compiler.verifyBoxing`: debugging aid that emits runtime assertions at every
+>   concrete-typed box/unbox transition, so box-state drift between the compiler's belief and
+>   the actual runtime representation fails fast at the offending op instead of surfacing as a
+>   distant type error. Defaults to off.
 >
 > **Dynamic dispatch & method invocation fixes**
 > - Method calls on `dynamic` receivers no longer pass the receiver as the first argument to
@@ -22,6 +26,11 @@
 > - Arguments are boxed across dynamic dispatch boundaries; missing optional arguments are
 >   null-padded (`l.sort()`, `join()`, `toList()` on dynamic receivers)
 > - Explicit `.call()` on functions compiles; unary minus works on `num`/`dynamic` operands
+> - `dynamic`-typed values holding functions can be invoked (e.g. a closure returned from
+>   another closure: `mul(3)(4)`); the static-vs-dynamic dispatch decision is derived once at
+>   variable construction instead of being re-derived inconsistently at call sites
+> - Invoking a missing method on a `dynamic` receiver throws a catchable `NoSuchMethodError`
+>   (matching Dart) instead of crashing the interpreter with a host error
 >
 > **Null safety & nullability fixes**
 > - `as`/`is` respect nullability (`null as String?`, `null is String?`); `as` no longer
@@ -54,8 +63,15 @@
 > - If-case statements (`if (value case pattern when guard) ...`) with pattern variable binding
 > - Map patterns (`{'k': int v}`) and object patterns (`Point(x: 0, y: var y)`), in switches,
 >   if-case, and irrefutable declarations (`final Point(:x, :y) = p;`)
+> - Logical patterns (`> 0 && < 10`, `p1 || p2`) with short-circuit semantics
 > - Typed pattern variables promote (`if (o case int n) n + 1`); nested and mixed
 >   record/list patterns (`[[a, _], [_, d]]`); rest elements (`[first, ...rest, last]`)
+> - `continue` statements in loops (previously unimplemented; labels remain unsupported)
+> - `late final` fields without initializers are assignable, e.g. from a constructor body
+>   (the once-only runtime check is not enforced)
+> - Self-recursive local functions (`int fact(int n) => n <= 1 ? 1 : n * fact(n - 1);`)
+> - Assignment to static fields by bare identifier inside class bodies
+>   (`static int count = 0; static int bump() => ++count;`)
 > - Null-aware index operator (`target?[index]`), including chained forms like `m?['a']?[1]`
 > - `String` `*` operator (`'ab' * 3`)
 > - Spread (`...`/`...?`), `if` and `for` elements in set and map literals, matching the
@@ -65,6 +81,31 @@
 >   instance methods/getters
 > - Inherited `Object` methods (`toString`, `hashCode`, `==`) on script class instances that
 >   don't override them
+> - Stdlib: `Map.putIfAbsent`, `Map.update`, `Map.containsValue`; `Set.add` returns whether
+>   the value was added
+>
+> **Dart semantics correctness fixes**
+> - `??=` only evaluates its right-hand side when the target is null, and the expression
+>   yields the target's final value
+> - `finally` blocks preserve a pending `return` from the try body (previously the value was
+>   lost and the function returned null)
+> - Boxing a list preserves its identity, so aliased references observe mutations
+>   (`final b = a; b.add(4);` changes `a.length`) — boxing previously copied the list
+> - Cascade property assignments (`Box()..a = 1..b = 2`) mutate the actual target instead of
+>   recompiling the target expression into a fresh instance
+> - Numeric result typing matches Dart: `/` is always `double` (so `0 / 0` is NaN), `~/` is
+>   always `int`, and `double + int` is `double` rather than `num`
+> - Double literals are stored as float64 in bytecode (previously float32, so `1.8` lost
+>   precision); note this changes the EVC bytecode layout, so cached `.evc` files must be
+>   recompiled
+> - Uninitialized statics/globals (`static Foo? x;`) read as null instead of executing stray
+>   bytecode at program offset 0
+> - Two consecutive loops no longer corrupt the frame: a do-while's exit path leaked the last
+>   iteration's allocations, shifting every subsequent slot
+> - Relational patterns no longer corrupt the switch subject's representation for later cases
+>   (any switch with two numeric patterns was affected)
+> - `$List.view` works in evaluated code: unboxing it yields a write-through view that wraps
+>   elements on read and writes back to the host list (new `$ValueView` interface)
 >
 > **Additional fixes**
 > - Script class inheritance: inherited method calls, polymorphic dispatch through a base-typed
@@ -78,7 +119,10 @@
 > - Structural pattern type tests are null-safe: a null subject (e.g. an absent map key) fails
 >   the match instead of crashing on the `is` check
 >
-> All fixes are covered by regression tests; the full upstream test suite passes.
+> All fixes are covered by regression tests; the full upstream test suite passes (566 tests,
+> none skipped). [test/dart_semantics_test.dart](test/dart_semantics_test.dart) additionally
+> asserts, feature by feature, that evaluated code matches what the equivalent native Dart
+> program produces.
 
 `dart_eval` is an extensible bytecode compiler and interpreter for the Dart language, 
 written in Dart, enabling dynamic execution and codepush for Flutter and Dart AOT.
@@ -96,10 +140,12 @@ created in the interpreter to be used outside it.
 dart_eval's compiler is powered under the hood by the Dart 
 [analyzer](https://pub.dev/packages/analyzer), so it achieves 100% correct and 
 up-to-date parsing. While compilation and execution aren't quite there yet, dart_eval
-has over 300 tests that are run in CI to ensure correctness.
+has over 550 tests that are run in CI to ensure correctness.
 
 Currently dart_eval implements a majority of the Dart spec, but there 
-are still missing features like generators (this fork adds extension methods).
+are still missing features like generators, mixins and typedefs (this fork adds
+extension methods, switch expressions, logical patterns, `continue`, late field
+assignment and more — see [About this fork](#about-this-fork)).
 In addition, parts of the standard library haven't been implemented. See the
 [language feature support table](#language-feature-support-table) for details.
 
@@ -583,72 +629,80 @@ violations in updates, regardless of the technology used.
 The following table details the language features supported by dart_eval with native Dart code. Feature support
 may vary when bridging.
 
+In addition to the per-feature tests below, [dart_semantics_test.dart](test/dart_semantics_test.dart)
+holds 57 edge-case tests asserting that evaluated code matches what the equivalent native
+Dart program produces (numeric typing, string handling, null safety, control flow, closures,
+classes, collections, patterns, exceptions, and async).
+
 | Feature | Support level | Tests |
 | ------- | ------------- | ----- |
-| Imports | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/lib_composition_test.dart#L14)  |
-| Exports | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/lib_composition_test.dart#L45) |
-| `part` / `part of` | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/lib_composition_test.dart#L76) |
-| `show` and `hide` | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/lib_composition_test.dart#L14) |
+| Imports | ✅ | [lib_composition_test.dart](test/lib_composition_test.dart) |
+| Exports | ✅ | [lib_composition_test.dart](test/lib_composition_test.dart) |
+| `part` / `part of` | ✅ | [lib_composition_test.dart](test/lib_composition_test.dart) |
+| `show` and `hide` | ✅ | [lib_composition_test.dart](test/lib_composition_test.dart) |
 | Conditional imports | ❌ | N/A |
-| Prefixed imports | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test#L568) |
+| Prefixed imports | ✅ | [prefixed_import_test.dart](test/prefixed_import_test.dart) |
 | Deferred imports | ❌ | N/A |
-| Functions | ✅ | [4 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/function_test.dart#L36) |
-| Anonymous functions | ✅ | [7 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/function_test.dart#L104) |
-| Arrow functions | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/function_test.dart#L237) |
+| Functions | ✅ | [function_test.dart](test/function_test.dart) |
+| Local functions | ✅ (this fork: self-recursion) | [local_fn_test.dart](test/local_fn_test.dart) |
+| Anonymous functions | ✅ | [function_test.dart](test/function_test.dart) |
+| Arrow functions | ✅ | [function_test.dart](test/function_test.dart) |
 | Sync generators | ❌ | N/A |
 | Async generators | ❌ | N/A |
-| Tear-offs | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/tearoff_test.dart#L12) |
-| For loops | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L13) |
-| While loops | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L69) |
-| Do-while loops | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L86) |
-| For-each loops | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L54) |
+| Tear-offs | ✅ | [tearoff_test.dart](test/tearoff_test.dart) |
+| For loops | ✅ | [loop_test.dart](test/loop_test.dart) |
+| While loops | ✅ | [loop_test.dart](test/loop_test.dart) |
+| Do-while loops | ✅ | [loop_test.dart](test/loop_test.dart) |
+| For-each loops | ✅ | [loop_test.dart](test/loop_test.dart) |
 | Async for-each | ❌ | N/A |
-| Switch statements | ✅ | [20 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/switch_test.dart) |
+| Switch statements | ✅ | [switch_test.dart](test/switch_test.dart), [switch_break_test.dart](test/switch_break_test.dart) |
 | Switch expressions | ✅ (this fork) | [switch_test.dart](test/switch_test.dart) |
-| Labels, `break` & `continue` | Partial | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L126), [+more](https://github.com/ethanblake4/dart_eval/blob/master/test/switch_test.dart) |
-| If statements | ✅ | [[1]](https://github.com/ethanblake4/dart_eval/blob/master/test/loop_test.dart#L28) |
-| Try-catch | ✅ | [5 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/exception_test.dart#L13)|
-| Try-catch-finally | ✅ | [5 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/exception_test.dart#L132) |
-| Lists | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/collection_test.dart#L44) |
-| Iterable | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/collection_test.dart#L14) |
-| Maps | ✅ | [9 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/collection_test.dart#L202) |
-| Sets | ✅ | [7 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/set_test.dart) |
-| Collection `for` | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/collection_test.dart#L14) |
-| Collection `if` | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/collection_test.dart#L14) |
-| Spreads | Partial | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/collection_test.dart#L137) |
-| Classes | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart) |
-| Class static methods | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L147) |
-| Getters and setters | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L253) |
-| Factory constructors | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L375) |
-| Redirecting constructors | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L474) |
-| `new` keyword | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L195) |
-| Class inheritance | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/functional1_test.dart) |
-| Abstract and `implements` | Partial | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/packages/hlc_test.dart#L8) |
-| `this` keyword | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L89) |
-| `super` keyword | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L319) |
-| Super constructor params | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/class_test.dart#L277) |
+| `break` & `continue` | ✅ (this fork adds `continue`; labels ❌) | [loop_test.dart](test/loop_test.dart), [dart_semantics_test.dart](test/dart_semantics_test.dart) |
+| If statements | ✅ | [loop_test.dart](test/loop_test.dart) |
+| Try-catch | ✅ | [exception_test.dart](test/exception_test.dart), [errors_test.dart](test/errors_test.dart) |
+| Try-catch-finally | ✅ (this fork: returns through `finally`) | [exception_test.dart](test/exception_test.dart), [dart_semantics_test.dart](test/dart_semantics_test.dart) |
+| Lists | ✅ | [collection_test.dart](test/collection_test.dart) |
+| Iterable | ✅ | [collection_test.dart](test/collection_test.dart) |
+| Maps | ✅ | [collection_test.dart](test/collection_test.dart) |
+| Sets | ✅ | [set_test.dart](test/set_test.dart) |
+| Collection `for` | ✅ | [collection_test.dart](test/collection_test.dart) |
+| Collection `if` | ✅ | [collection_test.dart](test/collection_test.dart) |
+| Spreads | Partial | [collection_test.dart](test/collection_test.dart) |
+| Classes | ✅ | [class_test.dart](test/class_test.dart) |
+| Class static methods | ✅ | [class_test.dart](test/class_test.dart) |
+| Getters and setters | ✅ | [class_test.dart](test/class_test.dart) |
+| Static fields | ✅ (this fork: bare-identifier assignment) | [class_test.dart](test/class_test.dart), [dart_semantics_test.dart](test/dart_semantics_test.dart) |
+| Operator methods | ✅ | [operator_test.dart](test/operator_test.dart) |
+| Factory constructors | ✅ | [class_test.dart](test/class_test.dart) |
+| Redirecting constructors | ✅ | [class_test.dart](test/class_test.dart) |
+| `new` keyword | ✅ | [class_test.dart](test/class_test.dart) |
+| Class inheritance | ✅ | [class_test.dart](test/class_test.dart), [functional1_test.dart](test/functional1_test.dart) |
+| Abstract and `implements` | Partial | [hlc_test.dart](test/packages/hlc_test.dart) |
+| `this` keyword | ✅ | [class_test.dart](test/class_test.dart) |
+| `super` keyword | ✅ | [class_test.dart](test/class_test.dart) |
+| Super constructor params | ✅ | [class_test.dart](test/class_test.dart) |
 | Mixins | ❌ | N/A |
-| Futures | Partial | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/async_test.dart#L69) |
-| Async/await | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/async_test.dart#L13) |
-| Streams | Partial | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/stdlib_test.dart#L172) |
-| String interpolation | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/stdlib_test.dart#L95) |
-| Enums | Partial | [4 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/enum_test.dart#L12) |
-| Generic function types | Partial | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/function_test.dart#L302) |
+| Futures | Partial | [async_test.dart](test/async_test.dart) |
+| Async/await | ✅ | [async_test.dart](test/async_test.dart) |
+| Streams | Partial | [stdlib_test.dart](test/stdlib_test.dart) |
+| String interpolation | ✅ | [stdlib_test.dart](test/stdlib_test.dart), [string_test.dart](test/string_test.dart) |
+| Enums | Partial (extended in this fork) | [enum_test.dart](test/enum_test.dart) |
+| Generic function types | Partial | [function_test.dart](test/function_test.dart) |
 | Typedefs | ❌ | N/A |
 | Generic classes | Partial | ❌ |
-| Type tests (`is`) | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L12) |
-| Casting (`as`) | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L240) |
-| `assert` | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/exception_test.dart#L287) |
-| Null safety | Partial | ❌ |
-| Late initialization | ❌ | N/A |
-| Cascades | ✅ | [2 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L190) |
-| Ternary expressions | ✅ | [1 test](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L344) |
-| Null coalescing expressions | ✅ | [3 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/expression_test.dart#L64) |
+| Type tests (`is`) | ✅ | [expression_test.dart](test/expression_test.dart) |
+| Casting (`as`) | ✅ | [expression_test.dart](test/expression_test.dart) |
+| `assert` | ✅ | [exception_test.dart](test/exception_test.dart) |
+| Null safety | Partial | [dart_semantics_test.dart](test/dart_semantics_test.dart) |
+| Late initialization | Partial (this fork: `late`/`late final` fields assignable; once-only check not enforced) | [field_test.dart](test/field_test.dart) |
+| Cascades | ✅ | [expression_test.dart](test/expression_test.dart), [dart_semantics_test.dart](test/dart_semantics_test.dart) |
+| Ternary expressions | ✅ | [expression_test.dart](test/expression_test.dart) |
+| Null coalescing expressions | ✅ (this fork: lazy `??=`) | [expression_test.dart](test/expression_test.dart), [dart_semantics_test.dart](test/dart_semantics_test.dart) |
 | Extension methods | Partial (this fork) | [extension_test.dart](test/extension_test.dart) |
 | Const expressions | Partial | N/A |
 | Isolates | ❌ | N/A |
-| Record types | Partial | [4 tests](https://github.com/ethanblake4/dart_eval/blob/master/test/records_test.dart#L12) |
-| Patterns | Partial (extended in this fork) | [pattern_test.dart](test/pattern_test.dart) |
+| Record types | Partial | [records_test.dart](test/records_test.dart) |
+| Patterns | Partial (extended in this fork: logical patterns, guards, map/object patterns) | [pattern_test.dart](test/pattern_test.dart), [switch_test.dart](test/switch_test.dart), [dart_semantics_test.dart](test/dart_semantics_test.dart) |
 
 ## Features and bugs
 
