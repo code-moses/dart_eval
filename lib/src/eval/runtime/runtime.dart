@@ -786,8 +786,13 @@ class Runtime {
   /// The exception to be rethrown
   Object? rethrowException;
 
-  /// Last return value from a catch block
+  /// Last return value from a try or catch block guarded by a finally
   Object? returnFromCatch;
+
+  /// Whether the finally block currently executing was entered because of a
+  /// return statement (latched from [catchControlFlowOutcome] at finally
+  /// entry, so calls made inside the finally body cannot clobber it)
+  bool finallyPendingReturn = false;
 
   /// [frameOffset]s for each stack frame
   final frameOffsetStack = <int>[0];
