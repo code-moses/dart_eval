@@ -612,7 +612,19 @@ Variable patternMatchAndBind(
           (throw CompileError(
             'Unknown relational operator ${pat.operator.type}',
           ));
-      return V.invoke(ctx, operator, [operand]).result;
+      // Compare on a copy of the subject: the intrinsic numeric comparison
+      // unboxes its receiver slot in place, which would corrupt the shared
+      // subject's representation for the following cases.
+      final copySlot = BuiltinValue().push(ctx);
+      ctx.pushOp(
+        CopyValue.make(copySlot.scopeFrameOffset, V.scopeFrameOffset),
+        CopyValue.LEN,
+      );
+      final copy = copySlot.copyWith(
+        type: V.type,
+        concreteTypes: V.concreteTypes,
+      );
+      return copy.invoke(ctx, operator, [operand]).result;
     case WildcardPattern pat:
       return _typeTest(ctx, pat.type, V);
     case ParenthesizedPattern pat:
@@ -622,9 +634,78 @@ Variable patternMatchAndBind(
         V,
         patternContext: patternContext,
       );
+    case LogicalAndPattern pat:
+      return _matchLogicalPattern(
+        ctx,
+        pat.leftOperand,
+        pat.rightOperand,
+        isAnd: true,
+        V: V,
+        patternContext: patternContext,
+      );
+    case LogicalOrPattern pat:
+      return _matchLogicalPattern(
+        ctx,
+        pat.leftOperand,
+        pat.rightOperand,
+        isAnd: false,
+        V: V,
+        patternContext: patternContext,
+      );
     default:
       throw CompileError('Unsupported pattern type: ${pattern.runtimeType}');
   }
+}
+
+/// Matches a logical pattern (`p1 && p2` / `p1 || p2`) against [V] with
+/// short-circuit semantics: for `&&` the right pattern is only tried when
+/// the left matched, for `||` only when it failed.
+Variable _matchLogicalPattern(
+  CompilerContext ctx,
+  DartPattern left,
+  DartPattern right, {
+  required bool isAnd,
+  required Variable V,
+  required PatternBindContext patternContext,
+}) {
+  final L = patternMatchAndBind(
+    ctx,
+    left,
+    V,
+    patternContext: patternContext,
+  ).boxIfNeeded(ctx);
+  final outVar = BuiltinValue().push(ctx);
+  ctx.pushOp(
+    CopyValue.make(outVar.scopeFrameOffset, L.scopeFrameOffset),
+    CopyValue.LEN,
+  );
+  macroBranch(
+    ctx,
+    null,
+    condition: (ctx) {
+      final trigger = BuiltinValue(boolval: isAnd).push(ctx).boxIfNeeded(ctx);
+      ctx.pushOp(
+        CheckEq.make(L.scopeFrameOffset, trigger.scopeFrameOffset),
+        CheckEq.LEN,
+      );
+      ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
+      return Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
+    },
+    thenBranch: (ctx, rt) {
+      final R = patternMatchAndBind(
+        ctx,
+        right,
+        V,
+        patternContext: patternContext,
+      ).boxIfNeeded(ctx);
+      ctx.pushOp(
+        CopyValue.make(outVar.scopeFrameOffset, R.scopeFrameOffset),
+        CopyValue.LEN,
+      );
+      return StatementInfo(-1);
+    },
+  );
+  return outVar.copyWith(type: CoreTypes.bool.ref(ctx).copyWith(boxed: true));
 }
 
 Variable _typeTest(CompilerContext ctx, TypeAnnotation? patType, Variable V) {
