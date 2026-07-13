@@ -192,6 +192,11 @@ class CompilerContext with ScopeContext {
   /// nullable type evaluates to null instead of throwing.
   bool softNullableCasts = false;
 
+  /// See [Compiler.verifyBoxing]: when enabled, box/unbox transitions emit
+  /// runtime [AssertBoxState] ops that check the slot's representation matches
+  /// the compiler's belief, surfacing box/unbox drift at its source.
+  bool verifyBoxing = false;
+
   String? get currentClassName {
     final currentClass = this.currentClass;
 
@@ -238,6 +243,11 @@ class CompilerContext with ScopeContext {
   List<ContextSaveState> typeUninferenceSaveStates = [];
   List<CompilerLabel> labels = [];
   Map<CompilerLabel, Set<int>> labelReferences = {};
+
+  /// Forward jumps emitted by `continue` statements, keyed by their loop
+  /// label; resolved by [resolveContinueReferences] to the loop's
+  /// update/condition section.
+  Map<CompilerLabel, Set<int>> continueReferences = {};
   final List<Variable> caughtExceptions = [];
   PrescanContext? preScan;
 
@@ -322,9 +332,8 @@ class CompilerContext with ScopeContext {
 
           final frameListVar = Variable(
             frOffset,
-            CoreTypes.list
-                .ref(this)
-                .copyWith(boxed: false, specifiedTypeArgs: [v.type]),
+            CoreTypes.list.ref(this).copyWith(specifiedTypeArgs: [v.type]),
+            boxed: false,
           );
           return v.copyWith(
             scopeFrameOffset: scopeFrameOffset++,
@@ -420,6 +429,18 @@ class CompilerContext with ScopeContext {
 
   void resolveLabel(CompilerLabel label) {
     final references = labelReferences[label];
+    if (references != null) {
+      for (final ref in references) {
+        final jump = JumpConstant.make(out.length);
+        rewriteOp(ref, jump, 0);
+      }
+    }
+  }
+
+  /// Rewrites the `continue` jumps registered for [label] to the current
+  /// program position (the loop's update/condition section).
+  void resolveContinueReferences(CompilerLabel label) {
+    final references = continueReferences[label];
     if (references != null) {
       for (final ref in references) {
         final jump = JumpConstant.make(out.length);

@@ -141,10 +141,21 @@ class InvokeDynamic implements EvcOp {
       // chain without finding the method, [object] is null. Fall back to the
       // original instance so inherited core Object methods (toString,
       // hashCode, ==) resolve via getCoreObjectProperty instead of crashing.
-      final target = object ?? runtime.frame[_location];
-      final method =
-          ((target as $Instance).$getProperty(runtime, method0)
-              as EvalFunction);
+      final target = (object ?? runtime.frame[_location]) as $Instance;
+      final EvalFunction method;
+      try {
+        method = target.$getProperty(runtime, method0) as EvalFunction;
+      } on UnimplementedError {
+        // The wrapper property chain bottomed out at $Object: the receiver's
+        // type has no such member. In Dart, invoking a missing method on a
+        // dynamic receiver throws a catchable NoSuchMethodError.
+        _throwNoSuchMethod(runtime, target, method0);
+        return;
+      } on EvalUnknownPropertyException {
+        // Same, for interpreted classes (getCoreObjectProperty miss).
+        _throwNoSuchMethod(runtime, target, method0);
+        return;
+      }
       final List<$Value?> args;
       if (method is EvalStaticFunctionPtr) {
         // An interpreted method (e.g. on a subclassed bridge class): expects
@@ -171,6 +182,20 @@ class InvokeDynamic implements EvcOp {
       runtime.args = [];
       return;
     }
+  }
+
+  /// Throws a guest-catchable [NoSuchMethodError] for a dynamic invocation of
+  /// [method] that the receiver [target] does not have.
+  void _throwNoSuchMethod(Runtime runtime, $Instance target, String method) {
+    final invocation = Invocation.method(Symbol(method), [
+      for (final arg in runtime.args) arg is $Value ? arg.$reified : arg,
+    ]);
+    runtime.args = [];
+    runtime.$throw(
+      $NoSuchMethodError.wrap(
+        NoSuchMethodError.withInvocation(target.$reified, invocation),
+      ),
+    );
   }
 
   @override

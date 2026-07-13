@@ -4,7 +4,7 @@ import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/collection/list.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/extension.dart';
-import 'package:dart_eval/src/eval/compiler/expression/function.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
 
@@ -21,37 +21,57 @@ import 'offset_tracker.dart';
 /// Usually instantiated with [Variable.alloc] to automate [ScopeContext] updates.
 /// Expression parser in [compileExpression] returns an instance of this class.
 class Variable {
+  /// [boxed] states the runtime representation the caller expects this
+  /// variable's slot to hold (`$Value` wrapper vs raw value). It is stamped
+  /// onto [type], so `type.boxed` always reflects the caller's stated intent
+  /// and cannot silently diverge from an incidentally-flagged type.
+  ///
+  /// [callingConvention] is derived here as the single source of truth — call
+  /// sites switch on it alone rather than re-deriving it. A `Function`- or
+  /// `dynamic`-typed value with no known method offset can only be invoked
+  /// through [CallingConvention.dynamic]; there is nothing to statically
+  /// dispatch to, so that combination is forced dynamic even if a stale
+  /// convention is carried in (e.g. via [copyWith] retyping a variable).
+  /// Otherwise the stated convention is respected, defaulting to static.
   Variable(
     this.scopeFrameOffset,
-    this.type, {
+    TypeRef type, {
+    required bool boxed,
     this.methodOffset,
     this.methodReturnType,
     this.isFinal = false,
     this.concreteTypes = const [],
     CallingConvention? callingConvention,
     this.frameRef,
-  }) : callingConvention =
-           callingConvention ??
-           ((type == TypeRef(dartCoreFile, 'Function') && methodOffset == null)
-               ? CallingConvention.dynamic
-               : CallingConvention.static) /*,
+  }) : type = type.boxed == boxed ? type : type.copyWith(boxed: boxed),
+       callingConvention =
+           ((type == TypeRef(dartCoreFile, 'Function') ||
+                   type == TypeRef(dartCoreFile, 'dynamic')) &&
+               methodOffset == null)
+           ? CallingConvention.dynamic
+           : (callingConvention ?? CallingConvention.static) /*,
         todo: assert(!type.nullable || type.boxed)*/;
 
   /// Allocates a variable of the given [type] on the scope frame.
   /// Automatically increases the frame offset and [ScopeContext.allocNest].
+  ///
+  /// [boxed] is the caller's explicit statement of the slot's runtime
+  /// representation; it is stamped onto [type] (see [Variable.new]).
   factory Variable.alloc(
     ScopeContext ctx,
     TypeRef type, {
+    required bool boxed,
     DeferredOrOffset? methodOffset,
     ReturnType? methodReturnType,
     bool isFinal = false,
     List<TypeRef> concreteTypes = const [],
-    CallingConvention callingConvention = CallingConvention.static,
+    CallingConvention? callingConvention,
   }) {
     ctx.allocNest.last++;
     return Variable(
       ctx.scopeFrameOffset++,
       type,
+      boxed: boxed,
       methodOffset: methodOffset,
       methodReturnType: methodReturnType,
       isFinal: isFinal,
@@ -77,11 +97,36 @@ class Variable {
   String? name;
   int? frameIndex;
 
+  /// When [CompilerContext.verifyBoxing] is on, emits a runtime assertion that
+  /// this variable's slot actually holds the given [boxed] representation.
+  /// A no-op for the -1 sentinel offset (unmaterialized values) and when the
+  /// flag is off.
+  void _assertBoxState(ScopeContext ctx, bool boxed) {
+    if (ctx is! CompilerContext || !ctx.verifyBoxing || scopeFrameOffset < 0) {
+      return;
+    }
+    // `dynamic` and `Object` are representation-polymorphic: the compiler
+    // treats them as logically boxed but never materializes a box op, so a slot
+    // of that static type may legitimately hold a raw value. Only concrete
+    // types have a deterministic representation tied to the boxed flag, so
+    // restrict verification to them (which is where box/unbox drift actually
+    // causes crashes).
+    if (type == CoreTypes.dynamic.ref(ctx) ||
+        type == CoreTypes.object.ref(ctx)) {
+      return;
+    }
+    ctx.pushOp(
+      AssertBoxState.make(scopeFrameOffset, boxed),
+      AssertBoxState.LEN,
+    );
+  }
+
   /// Boxes the variable, if it isn't yet. Does nothing with a dynamic
   /// type. Pushes a proper operator to box this value on the frame, and
   /// returns this instance with the type marked as boxed.
   Variable boxIfNeeded(ScopeContext ctx, [AstNode? source]) {
     if (boxed) {
+      _assertBoxState(ctx, true);
       return this;
     }
 
@@ -89,6 +134,7 @@ class Variable {
 
     if (type == CoreTypes.dynamic.ref(ctx) ||
         type == CoreTypes.object.ref(ctx)) {
+      _assertBoxState(ctx, true);
       return copyWith(type: type.copyWith(boxed: true));
     }
 
@@ -119,6 +165,7 @@ class Variable {
       throw CompileError('Cannot box $type', source);
     }
 
+    _assertBoxState(ctx, true);
     return copyWithUpdate(ctx, type: type.copyWith(boxed: true));
   }
 
@@ -129,9 +176,11 @@ class Variable {
   /// Set [update] to false if that's not desired.
   Variable unboxIfNeeded(ScopeContext ctx, [bool update = true]) {
     if (!boxed) {
+      _assertBoxState(ctx, false);
       return this;
     }
     ctx.pushOp(Unbox.make(scopeFrameOffset), Unbox.LEN);
+    _assertBoxState(ctx, false);
     if (!update) {
       return copyWith(type: type.copyWith(boxed: false));
     }
@@ -167,6 +216,8 @@ class Variable {
     return Variable(
         scopeFrameOffset ?? this.scopeFrameOffset,
         type ?? this.type,
+        // copyWith legitimately carries box-state forward on the type itself.
+        boxed: (type ?? this.type).boxed,
         methodOffset: methodOffset ?? this.methodOffset,
         isFinal: isFinal ?? this.isFinal,
         methodReturnType: methodReturnType ?? this.methodReturnType,
@@ -226,10 +277,10 @@ class Variable {
           PushConstantType.make(concrete.toRuntimeType(ctx).type),
           PushConstantType.LEN,
         );
-        return Variable.alloc(ctx, CoreTypes.type.ref(ctx));
+        return Variable.alloc(ctx, CoreTypes.type.ref(ctx), boxed: true);
       }
       ctx.pushOp(PushRuntimeType.make(scopeFrameOffset), PushRuntimeType.LEN);
-      return Variable.alloc(ctx, CoreTypes.type.ref(ctx));
+      return Variable.alloc(ctx, CoreTypes.type.ref(ctx), boxed: true);
     }
     final rawFieldType = TypeRef.lookupFieldType(
       ctx,
@@ -271,7 +322,9 @@ class Variable {
         );
         final loc = ctx.pushOp(op, PushObjectPropertyImpl.length);
         ctx.offsetTracker.setOffset(loc, offset);
-        return Variable.alloc(ctx, fieldType);
+        // Representation follows the resolved field type (resolveTypeChain
+        // stamps box-state per function-boundary rules).
+        return Variable.alloc(ctx, fieldType, boxed: fieldType.boxed);
       }
     }
     final op = PushObjectProperty.make(
@@ -281,7 +334,7 @@ class Variable {
     ctx.pushOp(op, PushObjectProperty.len(op));
 
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    return Variable.alloc(ctx, fieldType);
+    return Variable.alloc(ctx, fieldType, boxed: fieldType.boxed);
   }
 
   static List<Variable> boxUnboxMultiple(

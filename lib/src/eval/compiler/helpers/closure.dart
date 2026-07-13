@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
@@ -22,11 +23,13 @@ InvokeResult invokeClosure(
   final fNamed = {...?named};
 
   ctx.pushOp(PushList.make(), PushList.LEN);
+  // PushList pushes a raw list.
   final csPosArgTypes = Variable.alloc(
     ctx,
     CoreTypes.list
         .ref(ctx)
         .copyWith(specifiedTypeArgs: [CoreTypes.int.ref(ctx)]),
+    boxed: false,
   );
 
   final positionalArgs = <Variable>[];
@@ -37,6 +40,7 @@ InvokeResult invokeClosure(
     CoreTypes.list
         .ref(ctx)
         .copyWith(specifiedTypeArgs: [CoreTypes.int.ref(ctx)]),
+    boxed: false,
   );
 
   final namedArgs = <String, Variable>{};
@@ -97,11 +101,13 @@ InvokeResult invokeClosure(
     PushConstant.make(ctx.constantPool.addOrGet(namedArgNames)),
     PushConstant.LEN,
   );
+  // Constants are pushed in their raw representation.
   final alConstVar = Variable.alloc(
     ctx,
     CoreTypes.list
         .ref(ctx)
         .copyWith(specifiedTypeArgs: [CoreTypes.string.ref(ctx)]),
+    boxed: false,
   );
 
   ctx.pushOp(PushArg.make(csPosArgTypes.scopeFrameOffset), PushArg.LEN);
@@ -119,13 +125,9 @@ InvokeResult invokeClosure(
   var sd = closureRef?.getStaticDispatch(ctx);
   if (sd != null) {
     // Use static dispatch
-    final loc = ctx.pushOp(Call.make(sd.offset.offset ?? -1), Call.length);
-    ctx.offsetTracker.setOffset(loc, sd.offset);
+    pushCall(ctx, sd.offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    final res = Variable.alloc(
-      ctx,
-      CoreTypes.dynamic.ref(ctx).copyWith(boxed: true),
-    );
+    final res = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx), boxed: true);
     return InvokeResult(null, res, positionalArgs, namedArgs: namedArgs);
   } else {
     // Fallback to dynamic dispatch

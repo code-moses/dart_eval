@@ -138,6 +138,68 @@ class $Map<K, V> implements Map<K, V>, $Instance {
         ),
         isStatic: false,
       ),
+      'containsValue': BridgeMethodDef(
+        BridgeFunctionDef(
+          params: [
+            BridgeParameter(
+              'value',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.object),
+                nullable: true,
+              ),
+              false,
+            ),
+          ],
+          returns: BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.bool)),
+        ),
+        isStatic: false,
+      ),
+      'putIfAbsent': BridgeMethodDef(
+        BridgeFunctionDef(
+          params: [
+            BridgeParameter(
+              'key',
+              BridgeTypeAnnotation(BridgeTypeRef.ref('K')),
+              false,
+            ),
+            BridgeParameter(
+              'ifAbsent',
+              BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.function)),
+              false,
+            ),
+          ],
+          returns: BridgeTypeAnnotation(BridgeTypeRef.ref('V')),
+        ),
+        isStatic: false,
+      ),
+      'update': BridgeMethodDef(
+        BridgeFunctionDef(
+          params: [
+            BridgeParameter(
+              'key',
+              BridgeTypeAnnotation(BridgeTypeRef.ref('K')),
+              false,
+            ),
+            BridgeParameter(
+              'update',
+              BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.function)),
+              false,
+            ),
+          ],
+          namedParams: [
+            BridgeParameter(
+              'ifAbsent',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.function),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+          returns: BridgeTypeAnnotation(BridgeTypeRef.ref('V')),
+        ),
+        isStatic: false,
+      ),
     },
     getters: {
       'keys': BridgeMethodDef(
@@ -218,6 +280,12 @@ class $Map<K, V> implements Map<K, V>, $Instance {
         return $Iterable.wrap(values);
       case 'isNotEmpty':
         return $bool($value.isNotEmpty);
+      case 'containsValue':
+        return __containsValue;
+      case 'putIfAbsent':
+        return __putIfAbsent;
+      case 'update':
+        return __update;
     }
     return _superclass.$getProperty(runtime, identifier);
   }
@@ -273,6 +341,57 @@ class $Map<K, V> implements Map<K, V>, $Instance {
     List<$Value?> args,
   ) {
     return $bool((target!.$value as Map).containsKey(args[0]));
+  }
+
+  static const $Function __containsValue = $Function(_containsValue);
+
+  static $Value? _containsValue(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    return $bool((target!.$value as Map).containsValue(args[0]));
+  }
+
+  static const $Function __putIfAbsent = $Function(_putIfAbsent);
+
+  // putIfAbsent and update are implemented over the raw map rather than
+  // through the generic Map API: the callbacks return `$Value?`, which the
+  // map's reified value type would reject as a callback return type.
+  static $Value? _putIfAbsent(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final map = target!.$value as Map;
+    final key = args[0];
+    if (map.containsKey(key)) {
+      return map[key] as $Value?;
+    }
+    final value = (args[1] as EvalCallable).call(runtime, null, []);
+    map[key] = value;
+    return value;
+  }
+
+  static const $Function __update = $Function(_update);
+
+  static $Value? _update(Runtime runtime, $Value? target, List<$Value?> args) {
+    final map = target!.$value as Map;
+    final key = args[0];
+    if (map.containsKey(key)) {
+      final updated = (args[1] as EvalCallable).call(runtime, null, [
+        map[key] as $Value?,
+      ]);
+      map[key] = updated;
+      return updated;
+    }
+    final ifAbsent = args.length > 2 ? args[2] as EvalCallable? : null;
+    if (ifAbsent == null) {
+      throw ArgumentError.value(key?.$reified, 'key', 'Key not in map.');
+    }
+    final value = ifAbsent.call(runtime, null, []);
+    map[key] = value;
+    return value;
   }
 
   static const $Function __remove = $Function(_remove);

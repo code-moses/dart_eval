@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/fpl.dart';
@@ -16,8 +17,6 @@ import 'package:dart_eval/src/eval/compiler/type.dart';
 import 'package:dart_eval/src/eval/compiler/util.dart';
 import 'package:dart_eval/src/eval/compiler/variable.dart';
 import 'package:dart_eval/src/eval/runtime/runtime.dart';
-
-enum CallingConvention { static, dynamic }
 
 Variable compileFunctionExpression(
   FunctionExpression e,
@@ -36,7 +35,13 @@ Variable compileFunctionExpression(
   final existingAllocs = 1 + (e.parameters?.parameters.length ?? 0);
   ctx.beginAllocScope(existingAllocLen: existingAllocs, closure: true);
 
-  final $prev = Variable(0, CoreTypes.list.ref(ctx), isFinal: true);
+  // The #prev frame list is stored raw on the frame.
+  final $prev = Variable(
+    0,
+    CoreTypes.list.ref(ctx),
+    boxed: false,
+    isFinal: true,
+  );
 
   ctx.setLocal('#prev', $prev);
 
@@ -81,7 +86,8 @@ Variable compileFunctionExpression(
         type = fType.type!;
       }
     }
-    vRep = Variable(i + 1, type.copyWith(boxed: true))..name = p.name!.lexeme;
+    // Closure arguments always arrive boxed (allowUnboxed: false above).
+    vRep = Variable(i + 1, type, boxed: true)..name = p.name!.lexeme;
 
     ctx.setLocal(vRep.name!, vRep);
 
@@ -207,6 +213,7 @@ Variable compileFunctionExpression(
   return Variable.alloc(
     ctx,
     CoreTypes.function.ref(ctx),
+    boxed: true,
     methodReturnType: AlwaysReturnType(CoreTypes.dynamic.ref(ctx), false),
     methodOffset: DeferredOrOffset(offset: fnOffset),
     callingConvention: CallingConvention.dynamic,

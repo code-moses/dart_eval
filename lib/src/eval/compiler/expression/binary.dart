@@ -96,10 +96,7 @@ Variable _compileShortCircuit(
         CheckEq.LEN,
       );
       ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-      return Variable.alloc(
-        ctx,
-        CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-      );
+      return Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
     },
     thenBranch: (ctx, rt) {
       // Short-circuit: we only execute the RHS if the LHS is null

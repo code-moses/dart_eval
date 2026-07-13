@@ -1851,10 +1851,16 @@ class $List<E> implements List<E>, $Instance {
 }
 
 /// Writeback-capable wrapper for [List] with type mapping function
-class _$List$view<E> extends $List<E> {
+class _$List$view<E> extends $List<E> implements $ValueView {
   _$List$view(super.$value, this.mapper) : super.wrap();
 
   final $Value Function(E) mapper;
+
+  /// Unboxing the raw backing list would expose unwrapped elements the
+  /// runtime cannot interpret, so unbox to a write-through view that keeps
+  /// wrapping elements on read (see [$ValueView]).
+  @override
+  late final List $unboxedView = _MappedListView<E>($value, $map);
 
   $Value $map(E value) {
     if (value == null) return $null();
@@ -2140,5 +2146,36 @@ class _$List$view<E> extends $List<E> {
         (e) => test.call(runtime, null, [view.$map(e)])!.$value,
       ),
     );
+  }
+}
+
+/// Write-through view over a raw backing list that wraps elements as [$Value]s
+/// on read and unwraps written values back into the base list. This is the
+/// unboxed representation of a [$List.view] (see [$ValueView]): frame ops like
+/// element access read wrapped values, while mutations write back to the
+/// original list.
+class _MappedListView<E> with ListMixin<Object?> {
+  _MappedListView(this._base, this._mapper);
+
+  final List<E> _base;
+  final $Value Function(E) _mapper;
+
+  @override
+  int get length => _base.length;
+
+  @override
+  set length(int newLength) => _base.length = newLength;
+
+  @override
+  Object? operator [](int index) => _mapper(_base[index]);
+
+  @override
+  void operator []=(int index, Object? value) {
+    _base[index] = (value is $Value ? value.$value : value) as E;
+  }
+
+  @override
+  void add(Object? value) {
+    _base.add((value is $Value ? value.$value : value) as E);
   }
 }

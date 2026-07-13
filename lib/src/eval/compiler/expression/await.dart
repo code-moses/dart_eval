@@ -37,10 +37,8 @@ Variable compileAwaitExpression(AwaitExpression e, CompilerContext ctx) {
 
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
 
-  return Variable.alloc(
-    ctx,
-    type.specifiedTypeArgs.isNotEmpty
-        ? type.specifiedTypeArgs[0]
-        : CoreTypes.dynamic.ref(ctx),
-  );
+  final resultType = type.specifiedTypeArgs.isNotEmpty
+      ? type.specifiedTypeArgs[0]
+      : CoreTypes.dynamic.ref(ctx);
+  return Variable.alloc(ctx, resultType, boxed: resultType.boxed);
 }

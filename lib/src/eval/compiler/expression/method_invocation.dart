@@ -4,8 +4,8 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/declaration/extension.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
-import 'package:dart_eval/src/eval/compiler/expression/function.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/argument_list.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/closure.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/equality.dart';
@@ -100,9 +100,7 @@ Variable compileMethodInvocation(
         )
       : compileIdentifier(e.methodName, ctx);
 
-  if (method.callingConvention == CallingConvention.dynamic ||
-      (method.type == CoreTypes.function.ref(ctx) &&
-          method.methodOffset == null)) {
+  if (method.callingConvention == CallingConvention.dynamic) {
     return invokeClosure(ctx, null, method, e.argumentList).result;
   }
 
@@ -128,10 +126,7 @@ Variable compileMethodInvocation(
             '${e.methodName.name}.'];
     if (dec0 == null) {
       // Call to default constructor
-      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-      if (offset.offset == null) {
-        ctx.offsetTracker.setOffset(loc, offset);
-      }
+      pushCall(ctx, offset);
       ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
       mReturnType =
           method.methodReturnType?.toAlwaysReturnType(
@@ -148,13 +143,8 @@ Variable compileMethodInvocation(
       );
       final v = Variable.alloc(
         ctx,
-        mReturnType.type?.copyWith(
-              boxed:
-                  L != null ||
-                  !(mReturnType.type?.isUnboxedAcrossFunctionBoundaries ??
-                      false),
-            ) ??
-            CoreTypes.dynamic.ref(ctx),
+        returnType ?? CoreTypes.dynamic.ref(ctx),
+        boxed: returnType?.boxed ?? true,
         concreteTypes: returnType == null ? [] : [returnType],
       );
 
@@ -274,10 +264,7 @@ Variable compileMethodInvocation(
       ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
     }
   } else {
-    final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-    if (offset.offset == null) {
-      ctx.offsetTracker.setOffset(loc, offset);
-    }
+    pushCall(ctx, offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
   }
 
@@ -303,6 +290,7 @@ Variable compileMethodInvocation(
   final v = Variable.alloc(
     ctx,
     returnType ?? CoreTypes.dynamic.ref(ctx),
+    boxed: returnType?.boxed ?? true,
     concreteTypes: [if (isConstructor && returnType != null) returnType],
   );
 
@@ -424,10 +412,7 @@ Variable _invokeWithTarget(
         staticType.name,
         e.methodName.name,
       );
-      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-      if (offset.offset == null) {
-        ctx.offsetTracker.setOffset(loc, offset);
-      }
+      pushCall(ctx, offset);
     }
   } else if (L.concreteTypes.length == 1 && dec0 != null && !dec0.isBridge) {
     // If the concrete type is known we can use a static call. Resolve it
@@ -450,8 +435,7 @@ Variable _invokeWithTarget(
             methodType: 2,
             name: e.methodName.name,
           );
-    final loc = ctx.pushOp(Call.make(-1), Call.length);
-    ctx.offsetTracker.setOffset(loc, offset);
+    pushCall(ctx, offset);
   } else {
     final op = InvokeDynamic.make(
       L.boxIfNeeded(ctx).scopeFrameOffset,
@@ -476,7 +460,8 @@ Variable _invokeWithTarget(
 
   final v = Variable.alloc(
     ctx,
-    mReturnType?.type?.copyWith(boxed: true) ?? CoreTypes.dynamic.ref(ctx),
+    mReturnType?.type ?? CoreTypes.dynamic.ref(ctx),
+    boxed: true,
   );
 
   return v;
@@ -505,11 +490,11 @@ Variable _invokeExtensionMethod(
   );
 
   final offset = DeferredOrOffset(file: ext.extension.library, name: ext.key);
-  final loc = ctx.pushOp(Call.make(-1), Call.length);
-  ctx.offsetTracker.setOffset(loc, offset);
+  pushCall(ctx, offset);
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
 
-  return Variable.alloc(ctx, extensionReturnType(ctx, ext));
+  final extReturnType = extensionReturnType(ctx, ext);
+  return Variable.alloc(ctx, extReturnType, boxed: extReturnType.boxed);
 }
 
 DeclarationOrBridge<MethodDeclaration, BridgeMethodDef> resolveInstanceMethod(

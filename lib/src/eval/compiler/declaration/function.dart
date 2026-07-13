@@ -73,10 +73,8 @@ void compileFunctionDeclaration(FunctionDeclaration d, CompilerContext ctx) {
     if (p.type != null) {
       type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
     }
-    vRep = Variable(
-      i,
-      type.copyWith(boxed: !type.isUnboxedAcrossFunctionBoundaries),
-    )..name = p.name!.lexeme;
+    vRep = Variable(i, type, boxed: !type.isUnboxedAcrossFunctionBoundaries)
+      ..name = p.name!.lexeme;
 
     ctx.setLocal(vRep.name!, vRep);
 

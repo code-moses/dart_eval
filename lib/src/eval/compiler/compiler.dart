@@ -85,6 +85,14 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   /// mismatch, like standard Dart.
   var softNullableCasts = false;
 
+  /// When enabled, the compiler emits runtime assertions at every box/unbox
+  /// transition that verify a slot's actual representation (boxed `$Value` vs
+  /// raw value) matches what the compiler believes it to be. Intended for
+  /// debugging and for the test suite: it turns silent box/unbox drift — the
+  /// root cause of most "is not a subtype of $Instance/$Value" crashes — into
+  /// an immediate, located failure. Off by default; adds runtime overhead.
+  var verifyBoxing = false;
+
   // Add a plugin, which will only be run once.
   @override
   void addPlugin(EvalPlugin plugin) {
@@ -195,7 +203,8 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
 
     // Create a compilation context
     _ctx = CompilerContext(0, version: version)
-      ..softNullableCasts = softNullableCasts;
+      ..softNullableCasts = softNullableCasts
+      ..verifyBoxing = verifyBoxing;
 
     for (final plugin in _plugins) {
       if (!_appliedPlugins.contains(plugin.identifier)) {
@@ -563,7 +572,9 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
       _ctx.typeTypes.add(type.resolveTypeChain(_ctx).getRuntimeIndices(_ctx));
     }
 
-    final globalInitializers = List<int>.filled(_ctx.globalIndex, 0);
+    // -1 marks a global with no initializer (e.g. `static Foo? x;`), which
+    // must read as null rather than jump to bytecode offset 0.
+    final globalInitializers = List<int>.filled(_ctx.globalIndex, -1);
 
     for (final gi in _ctx.runtimeGlobalInitializerMap.entries) {
       globalInitializers[gi.key] = gi.value;

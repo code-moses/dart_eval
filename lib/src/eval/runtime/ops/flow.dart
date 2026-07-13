@@ -185,16 +185,28 @@ class Return implements EvcOp {
   void run(Runtime runtime) {
     if (_location > -1) {
       runtime.returnValue = runtime.frame[_location];
-    } else if (_location == -1 || _location == -3) {
+      // A value return may unwind into a pending finally block rather than
+      // the actual caller; mark it so the finally's Return(-2) knows to
+      // complete the return (from the try body as well as from a catch).
+      runtime.catchControlFlowOutcome = 1;
+    } else if (_location == -1) {
       runtime.returnValue = null;
+      runtime.catchControlFlowOutcome = 1;
+    } else if (_location == -3) {
+      // Normal completion of a try or catch block guarded by a finally:
+      // control continues after the try statement once the finally ran.
+      runtime.returnValue = null;
+      runtime.catchControlFlowOutcome = 0;
     } else {
+      // -2: end of a finally block.
       if (runtime.rethrowException != null) {
         runtime.$throw(runtime.rethrowException!);
         return;
       }
-      if (runtime.catchControlFlowOutcome != 1) {
+      if (!runtime.finallyPendingReturn) {
         return;
       }
+      runtime.finallyPendingReturn = false;
       runtime.returnValue = runtime.returnFromCatch;
     }
 
@@ -207,9 +219,6 @@ class Return implements EvcOp {
 
     runtime.catchStack.removeLast();
     if (runtime.inCatch) {
-      if (_location != -3) {
-        runtime.catchControlFlowOutcome = 1;
-      }
       runtime.inCatch = false;
     }
 
@@ -489,6 +498,10 @@ class PushReturnFromCatch implements EvcOp {
   @override
   void run(Runtime runtime) {
     runtime.returnFromCatch = runtime.returnValue;
+    // Latch whether this finally was entered via a return statement; calls
+    // inside the finally body set catchControlFlowOutcome themselves and
+    // must not affect how the finally completes.
+    runtime.finallyPendingReturn = runtime.catchControlFlowOutcome == 1;
   }
 
   @override

@@ -3,6 +3,7 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/bridge/declaration.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
 import 'package:dart_eval/src/eval/compiler/expression/method_invocation.dart';
@@ -121,7 +122,8 @@ void compileConstructorDeclaration(
 
       vrep = Variable(
         i,
-        type0.copyWith(boxed: !type0.isUnboxedAcrossFunctionBoundaries),
+        type0,
+        boxed: !type0.isUnboxedAcrossFunctionBoundaries,
       ).boxIfNeeded(ctx)..name = p.name.lexeme;
 
       fieldFormalNames.add(p.name.lexeme);
@@ -129,7 +131,8 @@ void compileConstructorDeclaration(
       final type = resolveSuperFormalType(ctx, ctx.library, p, d);
       vrep = Variable(
         i,
-        type.copyWith(boxed: !type.isUnboxedAcrossFunctionBoundaries),
+        type,
+        boxed: !type.isUnboxedAcrossFunctionBoundaries,
       ).boxIfNeeded(ctx)..name = p.name.lexeme;
       superParams.add(p.name.lexeme);
     } else {
@@ -137,10 +140,11 @@ void compileConstructorDeclaration(
       if (p.type != null) {
         type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
       }
-      type = type.copyWith(
+      vrep = Variable(
+        i,
+        type,
         boxed: !unboxedAcrossFunctionBoundaries.contains(type),
-      );
-      vrep = Variable(i, type)..name = p.name!.lexeme;
+      )..name = p.name!.lexeme;
     }
 
     ctx.setLocal(vrep.name!, vrep);
@@ -217,12 +221,10 @@ void compileConstructorDeclaration(
       clsType.name,
       name,
     );
-    final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-    if (offset.offset == null) {
-      ctx.offsetTracker.setOffset(loc, offset);
-    }
+    pushCall(ctx, offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-    final V = Variable.alloc(ctx, clsType);
+    // The redirected constructor returns a boxed instance.
+    final V = Variable.alloc(ctx, clsType, boxed: true);
     doReturn(ctx, AlwaysReturnType(clsType, false), V);
     return;
   }
@@ -257,7 +259,7 @@ void compileConstructorDeclaration(
 
     if (extendsDecl.isBridge) {
       ctx.pushOp(PushBridgeSuperShim.make(), PushBridgeSuperShim.length);
-      $super = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
+      $super = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx), boxed: true);
     } else {
       final extendsType = TypeRef.lookupDeclaration(
         ctx,
@@ -323,10 +325,7 @@ void compileConstructorDeclaration(
       }
 
       final offset = method.methodOffset!;
-      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-      if (offset.offset == null) {
-        ctx.offsetTracker.setOffset(loc, offset);
-      }
+      pushCall(ctx, offset);
 
       mReturnType =
           method.methodReturnType?.toAlwaysReturnType(
@@ -338,10 +337,8 @@ void compileConstructorDeclaration(
           AlwaysReturnType(CoreTypes.dynamic.ref(ctx), true);
 
       ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-      $super = Variable.alloc(
-        ctx,
-        mReturnType.type ?? CoreTypes.dynamic.ref(ctx),
-      );
+      final superType = mReturnType.type ?? CoreTypes.dynamic.ref(ctx);
+      $super = Variable.alloc(ctx, superType, boxed: superType.boxed);
     }
   }
 
@@ -399,7 +396,11 @@ void compileConstructorDeclaration(
   final body = d.body;
   if (d.factoryKeyword == null && body is! EmptyFunctionBody) {
     ctx.beginAllocScope();
-    ctx.setLocal('#this', Variable(instOffset, TypeRef.$this(ctx)!));
+    // CreateClass pushed a boxed instance at instOffset.
+    ctx.setLocal(
+      '#this',
+      Variable(instOffset, TypeRef.$this(ctx)!, boxed: true),
+    );
     if (body is BlockFunctionBody) {
       compileBlock(
         body.block,
@@ -457,7 +458,11 @@ void compileConstructorDeclaration(
           .sourceLib]!['${$extends.superclass.name.value()}.$constructorName']!,
     );
     ctx.pushOp(op, BridgeInstantiate.len(op));
-    final bridgeInst = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
+    final bridgeInst = Variable.alloc(
+      ctx,
+      CoreTypes.dynamic.ref(ctx),
+      boxed: true,
+    );
 
     ctx.pushOp(
       ParentBridgeSuperShim.make(
@@ -532,7 +537,7 @@ void compileDefaultConstructor(
 
     if (extendsDecl.isBridge) {
       ctx.pushOp(PushBridgeSuperShim.make(), PushBridgeSuperShim.length);
-      $super = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
+      $super = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx), boxed: true);
     } else {
       final extendsType = TypeRef.lookupDeclaration(
         ctx,
@@ -554,10 +559,7 @@ void compileDefaultConstructor(
       }
 
       final offset = method.methodOffset!;
-      final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-      if (offset.offset == null) {
-        ctx.offsetTracker.setOffset(loc, offset);
-      }
+      pushCall(ctx, offset);
       final clsType = TypeRef.lookupDeclaration(ctx, ctx.library, parent);
       mReturnType =
           method.methodReturnType?.toAlwaysReturnType(
@@ -569,10 +571,8 @@ void compileDefaultConstructor(
           AlwaysReturnType(CoreTypes.dynamic.ref(ctx), true);
 
       ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-      $super = Variable.alloc(
-        ctx,
-        mReturnType.type ?? CoreTypes.dynamic.ref(ctx),
-      );
+      final superType = mReturnType.type ?? CoreTypes.dynamic.ref(ctx);
+      $super = Variable.alloc(ctx, superType, boxed: superType.boxed);
     }
   }
 
@@ -612,7 +612,11 @@ void compileDefaultConstructor(
           .sourceLib]!['${$extends.superclass.name.lexeme}.$constructorName']!,
     );
     ctx.pushOp(op, BridgeInstantiate.len(op));
-    final bridgeInst = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx));
+    final bridgeInst = Variable.alloc(
+      ctx,
+      CoreTypes.dynamic.ref(ctx),
+      boxed: true,
+    );
 
     ctx.pushOp(
       ParentBridgeSuperShim.make(

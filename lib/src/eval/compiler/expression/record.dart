@@ -19,7 +19,8 @@ Variable compileRecordLiteral(
   }
 
   ctx.pushOp(PushList.make(), PushList.LEN);
-  final fieldList = Variable.alloc(ctx, CoreTypes.list.ref(ctx));
+  // PushList pushes a raw list.
+  final fieldList = Variable.alloc(ctx, CoreTypes.list.ref(ctx), boxed: false);
 
   var positionalFields = 1;
 
@@ -123,5 +124,6 @@ Variable compileRecordLiteral(
     PushRecord.make(fieldList.scopeFrameOffset, constIndex, -1),
     PushRecord.LEN,
   );
-  return Variable.alloc(ctx, type);
+  // PushRecord pushes a boxed $Record.
+  return Variable.alloc(ctx, type, boxed: true);
 }

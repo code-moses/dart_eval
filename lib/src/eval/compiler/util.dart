@@ -41,7 +41,7 @@ void asyncComplete(CompilerContext ctx, int valueOffset) {
       ctx.bridgeStaticFunctionIndices[ctx
           .libraryMap['dart:async']!]!['Completer.']!,
     );
-    completer = Variable.alloc(ctx, AsyncTypes.completer.ref(ctx));
+    completer = Variable.alloc(ctx, AsyncTypes.completer.ref(ctx), boxed: true);
   }
   ctx.pushOp(
     ReturnAsync.make(valueOffset, completer.scopeFrameOffset),

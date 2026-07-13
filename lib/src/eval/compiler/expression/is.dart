@@ -41,10 +41,7 @@ Variable compileIsExpression(IsExpression e, CompilerContext ctx) {
           IsType.make(boxedV.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, not),
           IsType.length,
         );
-        final vIs = Variable.alloc(
-          ctx,
-          CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-        );
+        final vIs = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
         ctx.pushOp(
           CopyValue.make(outVar.scopeFrameOffset, vIs.scopeFrameOffset),
           CopyValue.LEN,
@@ -60,5 +57,5 @@ Variable compileIsExpression(IsExpression e, CompilerContext ctx) {
     IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, not),
     IsType.length,
   );
-  return Variable.alloc(ctx, CoreTypes.bool.ref(ctx).copyWith(boxed: false));
+  return Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
 }

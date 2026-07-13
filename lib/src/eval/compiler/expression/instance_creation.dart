@@ -2,6 +2,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/dispatch.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/method_invocation.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/argument_list.dart';
@@ -84,15 +85,9 @@ Variable compileInstanceCreation(
       staticType.name,
       name,
     );
-    final loc = ctx.pushOp(Call.make(offset.offset ?? -1), Call.length);
-    if (offset.offset == null) {
-      ctx.offsetTracker.setOffset(loc, offset);
-    }
+    pushCall(ctx, offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
   }
 
-  return Variable.alloc(
-    ctx,
-    $resolved.concreteTypes.first.copyWith(boxed: true),
-  );
+  return Variable.alloc(ctx, $resolved.concreteTypes.first, boxed: true);
 }

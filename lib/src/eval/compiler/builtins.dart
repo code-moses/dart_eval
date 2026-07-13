@@ -32,30 +32,35 @@ class BuiltinValue {
     if (type == BuiltinValueType.intType) {
       ctx.pushOp(PushConstantInt.make(intval!), PushConstantInt.LEN);
       final type = CoreTypes.int.ref(ctx).copyWith(boxed: false);
-      return Variable.alloc(ctx, type, concreteTypes: [type]);
+      return Variable.alloc(ctx, type, boxed: false, concreteTypes: [type]);
     } else if (type == BuiltinValueType.doubleType) {
       ctx.pushOp(PushConstantDouble.make(doubleval!), PushConstantDouble.LEN);
       final type = CoreTypes.double.ref(ctx).copyWith(boxed: false);
-      return Variable.alloc(ctx, type, concreteTypes: [type]);
+      return Variable.alloc(ctx, type, boxed: false, concreteTypes: [type]);
     } else if (type == BuiltinValueType.stringType) {
       final op = PushConstant.make(ctx.constantPool.addOrGet(stringval!));
       ctx.pushOp(op, PushConstant.LEN);
       final type = CoreTypes.string.ref(ctx).copyWith(boxed: false);
-      return Variable.alloc(ctx, type, concreteTypes: [type]);
+      return Variable.alloc(ctx, type, boxed: false, concreteTypes: [type]);
     } else if (type == BuiltinValueType.boolType) {
       ctx.pushOp(PushTrue.make(), PushTrue.LEN);
       final type = CoreTypes.bool.ref(ctx).copyWith(boxed: false);
-      var value = Variable.alloc(ctx, type, concreteTypes: [type]);
+      var value = Variable.alloc(
+        ctx,
+        type,
+        boxed: false,
+        concreteTypes: [type],
+      );
       if (!boolval!) {
         ctx.pushOp(LogicalNot.make(value.scopeFrameOffset), LogicalNot.LEN);
-        value = Variable.alloc(ctx, type, concreteTypes: [type]);
+        value = Variable.alloc(ctx, type, boxed: false, concreteTypes: [type]);
       }
       return value;
     } else if (type == BuiltinValueType.nullType) {
       final op = PushNull.make();
       ctx.pushOp(op, PushNull.LEN);
       final type = CoreTypes.nullType.ref(ctx).copyWith(boxed: false);
-      return Variable.alloc(ctx, type, concreteTypes: [type]);
+      return Variable.alloc(ctx, type, boxed: false, concreteTypes: [type]);
     } else {
       throw CompileError('Cannot push unknown builtin value type $type');
     }
@@ -176,6 +181,20 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
     {},
   );
 
+  // Dart's `/` always produces a double and `~/` always an int, regardless
+  // of the operand types.
+  final divisionOp = KnownMethod(
+    AlwaysReturnType(CoreTypes.double.ref(ctx), false),
+    [KnownMethodArg('other', CoreTypes.num.ref(ctx), false)],
+    {},
+  );
+
+  final truncDivisionOp = KnownMethod(
+    AlwaysReturnType(CoreTypes.int.ref(ctx), false),
+    [KnownMethodArg('other', CoreTypes.num.ref(ctx), false)],
+    {},
+  );
+
   final intUnaryOp = KnownMethod(
     AlwaysReturnType(CoreTypes.int.ref(ctx), false),
     [],
@@ -202,11 +221,11 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       '-': intBinaryOp,
       'unary-': intUnaryOp,
       '*': intBinaryOp,
-      '/': intBinaryOp,
+      '/': divisionOp,
       '%': intBinaryOp,
       '|': intBitwiseOp,
       '&': intBitwiseOp,
-      '~/': intBinaryOp,
+      '~/': truncDivisionOp,
       '<<': intBitwiseOp,
       '>>': intBitwiseOp,
       '^': intBitwiseOp,
@@ -224,9 +243,9 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       '-': doubleBinaryOp,
       'unary-': doubleUnaryOp,
       '*': doubleBinaryOp,
-      '/': doubleBinaryOp,
+      '/': divisionOp,
       '%': doubleBinaryOp,
-      '~/': doubleBinaryOp,
+      '~/': truncDivisionOp,
       '<': numComparisonOp,
       '>': numComparisonOp,
       '<=': numComparisonOp,
@@ -241,8 +260,8 @@ Map<TypeRef, Map<String, KnownMethod>> getKnownMethods(CompilerContext ctx) {
       '-': numBinaryOp,
       'unary-': numUnaryOp,
       '*': numBinaryOp,
-      '/': numBinaryOp,
-      '~/': numBinaryOp,
+      '/': divisionOp,
+      '~/': truncDivisionOp,
       '%': numBinaryOp,
       '<': numComparisonOp,
       '>': numComparisonOp,

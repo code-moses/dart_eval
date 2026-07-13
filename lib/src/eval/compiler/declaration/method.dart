@@ -33,7 +33,7 @@ int compileMethodDeclaration(
 
   ctx.beginAllocScope(existingAllocLen: (d.parameters?.parameters.length ?? 0));
   ctx.scopeFrameOffset += d.parameters?.parameters.length ?? 0;
-  ctx.setLocal('#this', Variable(0, TypeRef.$this(ctx)!));
+  ctx.setLocal('#this', Variable(0, TypeRef.$this(ctx)!, boxed: true));
   final resolvedParams = d.parameters == null
       ? <PossiblyValuedParameter>[]
       : resolveFPLDefaults(ctx, d.parameters, true, allowUnboxed: false);
@@ -49,16 +49,12 @@ int compileMethodDeclaration(
 
     var type = CoreTypes.dynamic.ref(ctx);
     if (p.type != null) {
-      // Method args are always boxed to allow for bridge interop to have a
-      // consistent interface
-      type = TypeRef.fromAnnotation(
-        ctx,
-        ctx.library,
-        p.type!,
-      ).copyWith(boxed: true);
+      type = TypeRef.fromAnnotation(ctx, ctx.library, p.type!);
     }
 
-    ctx.setLocal(p.name!.lexeme, Variable(i, type));
+    // Method args are always boxed to allow for bridge interop to have a
+    // consistent interface
+    ctx.setLocal(p.name!.lexeme, Variable(i, type, boxed: true));
 
     i++;
   }

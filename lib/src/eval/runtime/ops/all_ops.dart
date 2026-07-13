@@ -230,6 +230,9 @@ class Evc {
   /// [PushFunctionPtrCopyCapture]
   static const OP_PUSH_FUNCTION_PTR_COPY_CAPTURE = 73;
 
+  /// [AssertBoxState]
+  static const OP_ASSERT_BOX_STATE = 74;
+
   static List<int> i16b(int i16) {
     final x = ByteData(2);
     x.setInt16(0, i16);
@@ -248,6 +251,12 @@ class Evc {
     return [x.getUint8(0), x.getUint8(1), x.getUint8(2), x.getUint8(3)];
   }
 
+  static List<int> f64b(double f64) {
+    final x = ByteData(8);
+    x.setFloat64(0, f64);
+    return [for (var i = 0; i < 8; i++) x.getUint8(i)];
+  }
+
   static List<int> istr(String str) {
     final u = utf8.encode(str);
     final x = ByteData(4);
@@ -259,6 +268,7 @@ class Evc {
   static const int I16_LEN = 2;
   static const int I32_LEN = 4;
   static const int F32_LEN = 4;
+  static const int F64_LEN = 8;
   static const int I64_LEN = 8;
 
   static int istrLen(String str) {
@@ -347,4 +357,5 @@ final List<OpLoader> ops = [
   (Runtime rt) => SetAdd(rt), // 71
   (Runtime rt) => BoxSet(rt), // 72
   (Runtime rt) => PushFunctionPtrCopyCapture(rt), // 73
+  (Runtime rt) => AssertBoxState(rt), // 74
 ];

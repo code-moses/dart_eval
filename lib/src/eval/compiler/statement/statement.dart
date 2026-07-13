@@ -1,11 +1,13 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
+import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
 import 'package:dart_eval/src/eval/compiler/expression/function.dart';
 import 'package:dart_eval/src/eval/compiler/statement/assert.dart';
 import 'package:dart_eval/src/eval/compiler/statement/break.dart';
+import 'package:dart_eval/src/eval/compiler/statement/continue.dart';
 import 'package:dart_eval/src/eval/compiler/statement/do.dart';
 import 'package:dart_eval/src/eval/compiler/statement/for.dart';
 import 'package:dart_eval/src/eval/compiler/statement/if.dart';
@@ -16,6 +18,7 @@ import 'package:dart_eval/src/eval/compiler/statement/try.dart';
 import 'package:dart_eval/src/eval/compiler/statement/variable_declaration.dart';
 import 'package:dart_eval/src/eval/compiler/statement/while.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
+import 'package:dart_eval/src/eval/runtime/runtime.dart';
 
 import 'block.dart';
 
@@ -64,13 +67,34 @@ StatementInfo compileStatement(
       return compileAssertStatement(s, ctx, expectedReturnType);
     } else if (s is BreakStatement) {
       return compileBreakStatement(s, ctx);
+    } else if (s is ContinueStatement) {
+      return compileContinueStatement(s, ctx);
     } else if (s is PatternVariableDeclarationStatement) {
       return compilePatternVariableDeclarationStatement(s, ctx);
     } else if (s is FunctionDeclarationStatement) {
       final decl = s.functionDeclaration;
+      final name = decl.name.lexeme;
+      // Register the name on a reserved slot before compiling the body so
+      // the function can call itself recursively; the closure captures it
+      // like any outer local, and the slot is filled below before any call
+      // can occur at runtime.
+      final reserved = ctx.setLocal(
+        name,
+        BuiltinValue()
+            .push(ctx)
+            .boxIfNeeded(ctx)
+            .copyWith(type: CoreTypes.function.ref(ctx).copyWith(boxed: true)),
+      );
       final variable = compileFunctionExpression(decl.functionExpression, ctx);
-      variable.name = decl.name.lexeme;
-      ctx.setLocal(decl.name.lexeme, variable);
+      ctx.pushOp(
+        CopyValue.make(reserved.scopeFrameOffset, variable.scopeFrameOffset),
+        CopyValue.LEN,
+      );
+      final fnVar = variable.copyWith(
+        scopeFrameOffset: reserved.scopeFrameOffset,
+      );
+      fnVar.name = name;
+      ctx.setLocal(name, fnVar);
       return StatementInfo(-1);
     }
   } on Error {

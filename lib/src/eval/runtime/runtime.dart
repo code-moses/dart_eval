@@ -91,7 +91,7 @@ class _UnloadedEnumValues {
 ///
 class Runtime {
   /// The current runtime version code
-  static const int versionCode = 82;
+  static const int versionCode = 83;
 
   /// Construct a runtime from EVC bytecode. When possible, use the
   /// [Runtime.ofProgram] constructor instead to reduce loading time.
@@ -681,7 +681,7 @@ class Runtime {
       case SetAdd op:
         return [Evc.OP_SET_ADD, ...Evc.i16b(op._set), ...Evc.i16b(op._value)];
       case PushConstantDouble op:
-        return [Evc.OP_PUSH_DOUBLE, ...Evc.f32b(op._value)];
+        return [Evc.OP_PUSH_DOUBLE, ...Evc.f64b(op._value)];
       case SetGlobal op:
         return [
           Evc.OP_SET_GLOBAL,
@@ -718,6 +718,12 @@ class Runtime {
           Evc.OP_ASSERT,
           ...Evc.i16b(op._valueOffset),
           ...Evc.i16b(op._exceptionOffset),
+        ];
+      case AssertBoxState op:
+        return [
+          Evc.OP_ASSERT_BOX_STATE,
+          ...Evc.i16b(op._reg),
+          op._expectBoxed ? 1 : 0,
         ];
       case PushFinally op:
         return [Evc.OP_PUSH_FINALLY, ...Evc.i32b(op._tryOffset)];
@@ -780,8 +786,13 @@ class Runtime {
   /// The exception to be rethrown
   Object? rethrowException;
 
-  /// Last return value from a catch block
+  /// Last return value from a try or catch block guarded by a finally
   Object? returnFromCatch;
+
+  /// Whether the finally block currently executing was entered because of a
+  /// return statement (latched from [catchControlFlowOutcome] at finally
+  /// entry, so calls made inside the finally body cannot clobber it)
+  bool finallyPendingReturn = false;
 
   /// [frameOffset]s for each stack frame
   final frameOffsetStack = <int>[0];
@@ -940,9 +951,9 @@ class Runtime {
   }
 
   @pragma('vm:always-inline')
-  double _readFloat32() {
-    final i = _evc.getFloat32(_offset);
-    _offset += 4;
+  double _readFloat64() {
+    final i = _evc.getFloat64(_offset);
+    _offset += 8;
     return i;
   }
 

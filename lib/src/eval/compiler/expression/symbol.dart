@@ -20,5 +20,5 @@ Variable compileSymbolLiteral(SymbolLiteral l, CompilerContext ctx) {
     InvokeExternal.LEN,
   );
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-  return Variable.alloc(ctx, CoreTypes.symbol.ref(ctx));
+  return Variable.alloc(ctx, CoreTypes.symbol.ref(ctx), boxed: true);
 }

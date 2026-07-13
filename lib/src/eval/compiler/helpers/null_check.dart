@@ -14,10 +14,7 @@ Variable compileNotNullCheck(CompilerContext ctx, Variable V) {
     CheckEq.LEN,
   );
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-  final isNull = Variable.alloc(
-    ctx,
-    CoreTypes.bool.ref(ctx).copyWith(boxed: false),
-  );
+  final isNull = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
   ctx.pushOp(LogicalNot.make(isNull.scopeFrameOffset), LogicalNot.LEN);
-  return Variable.alloc(ctx, CoreTypes.bool.ref(ctx).copyWith(boxed: false));
+  return Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
 }

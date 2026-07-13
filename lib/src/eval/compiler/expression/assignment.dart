@@ -10,23 +10,27 @@ import 'package:dart_eval/src/eval/compiler/variable.dart';
 
 Variable compileAssignmentExpression(
   AssignmentExpression e,
-  CompilerContext ctx,
-) {
-  final L = compileExpressionAsReference(e.leftHandSide, ctx);
-  final R = compileExpression(
-    e.rightHandSide,
+  CompilerContext ctx, {
+  Variable? cascadeTarget,
+}) {
+  final L = compileExpressionAsReference(
+    e.leftHandSide,
     ctx,
-    L.resolveType(ctx, forSet: true),
+    cascadeTarget: cascadeTarget,
   );
 
   if (e.operator.type == TokenType.EQ) {
+    final R = compileExpression(
+      e.rightHandSide,
+      ctx,
+      L.resolveType(ctx, forSet: true),
+    );
     final set = R.type != L.resolveType(ctx, forSet: true)
         ? R.boxIfNeeded(ctx)
         : R;
     return L.setValue(ctx, set);
   } else if (e.operator.type.binaryOperatorOfCompoundAssignment ==
       TokenType.QUESTION_QUESTION) {
-    late Variable result;
     macroBranch(
       ctx,
       null,
@@ -36,13 +40,29 @@ Variable compileAssignmentExpression(
         ]).result;
       },
       thenBranch: (ctx, rt) {
-        result = L.setValue(ctx, R.boxIfNeeded(ctx));
+        // The right-hand side of ??= must only be evaluated (including its
+        // side effects) when the target is actually null, so compile it
+        // inside the branch.
+        final R = compileExpression(
+          e.rightHandSide,
+          ctx,
+          L.resolveType(ctx, forSet: true),
+        );
+        L.setValue(ctx, R.boxIfNeeded(ctx));
         return StatementInfo(-1);
       },
     );
-    return result;
+    // The value of `a ??= b` is a's final value: b if a was null, otherwise
+    // the preexisting value. A result captured inside the branch would hold
+    // garbage whenever the branch is skipped, so re-read the target instead.
+    return L.getValue(ctx);
   } else {
     final method = e.operator.type.binaryOperatorOfCompoundAssignment!.lexeme;
+    final R = compileExpression(
+      e.rightHandSide,
+      ctx,
+      L.resolveType(ctx, forSet: true),
+    );
     final V = L.getValue(ctx);
     final res = V.invoke(ctx, method, [R]).result;
     final set = res.type != L.resolveType(ctx, forSet: true)

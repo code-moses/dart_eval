@@ -8,9 +8,10 @@ import 'package:dart_eval/src/eval/runtime/runtime.dart';
 Variable checkNotEqual(CompilerContext ctx, Variable L, Variable R) {
   ctx.pushOp(CheckEq.make(L.scopeFrameOffset, R.scopeFrameOffset), CheckEq.LEN);
   ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
-  final cond = Variable.alloc(ctx, CoreTypes.bool.ref(ctx));
+  // CheckEq pushes a raw bool.
+  final cond = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
   ctx.pushOp(LogicalNot.make(cond.scopeFrameOffset), LogicalNot.LEN);
-  return Variable.alloc(ctx, CoreTypes.bool.ref(ctx).copyWith(boxed: false));
+  return Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
 }
 
 Variable checkNotNull(CompilerContext ctx, Variable L) {

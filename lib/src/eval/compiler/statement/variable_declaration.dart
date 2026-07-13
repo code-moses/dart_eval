@@ -55,11 +55,11 @@ void compileVariableDeclarationList(
       }
       if (res.name != null) {
         final type0 = type ?? res.type;
+        // Matches the box/unbox normalization of `res` above.
         var v = Variable.alloc(
           ctx,
-          type0.isUnboxedAcrossFunctionBoundaries
-              ? type0.copyWith(boxed: false)
-              : type0,
+          type0,
+          boxed: !type0.isUnboxedAcrossFunctionBoundaries,
         );
         ctx.pushOp(PushNull.make(), PushNull.LEN);
         ctx.pushOp(
@@ -72,7 +72,9 @@ void compileVariableDeclarationList(
           li.name.lexeme,
           Variable(
             res.scopeFrameOffset,
-            (type ?? res.type).copyWith(boxed: res.boxed),
+            type ?? res.type,
+            // The local aliases res's slot, so it shares its representation.
+            boxed: res.boxed,
             isFinal: l.isFinal || l.isConst,
             methodOffset: res.methodOffset,
             methodReturnType: res.methodReturnType,

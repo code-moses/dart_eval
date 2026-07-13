@@ -81,7 +81,8 @@ Variable _handleDoubleOperands(
 ) {
   var l = L;
 
-  l = Variable.alloc(ctx, L.type);
+  // `l` is a copy of L's slot, so it shares L's representation.
+  l = Variable.alloc(ctx, L.type, boxed: L.type.boxed);
   ctx.pushOp(PushNull.make(), PushNull.LEN);
   ctx.pushOp(
     CopyValue.make(l.scopeFrameOffset, L.scopeFrameOffset),

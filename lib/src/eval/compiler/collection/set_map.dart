@@ -89,16 +89,15 @@ Variable compileSetOrMapLiteral(SetOrMapLiteral l, CompilerContext ctx) {
           .ref(ctx)
           .copyWith(
             specifiedTypeArgs: [collectionKeyType, collectionValueType],
-            boxed: false,
           ),
+      boxed: false,
     );
   } else {
     ctx.pushOp(PushSet.make(), PushSet.LEN);
     collection = Variable.alloc(
       ctx,
-      CoreTypes.set
-          .ref(ctx)
-          .copyWith(specifiedTypeArgs: [collectionKeyType], boxed: false),
+      CoreTypes.set.ref(ctx).copyWith(specifiedTypeArgs: [collectionKeyType]),
+      boxed: false,
     );
   }
 
@@ -129,12 +128,12 @@ Variable compileSetOrMapLiteral(SetOrMapLiteral l, CompilerContext ctx) {
     return Variable(
       collection.scopeFrameOffset,
       collection.type.copyWith(
-        boxed: false,
         specifiedTypeArgs: [
           TypeRef.commonBaseType(ctx, keyResultTypes.toSet()),
           TypeRef.commonBaseType(ctx, valueResultTypes.toSet()),
         ],
       ),
+      boxed: false,
     );
   }
 

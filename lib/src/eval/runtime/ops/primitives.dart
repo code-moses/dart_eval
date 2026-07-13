@@ -46,16 +46,16 @@ class PushConstantInt implements EvcOp {
   String toString() => 'PushConstantInt ($_value)';
 }
 
-/// Appends an unboxed float32 (as Dart double) value to the runtime frame.
+/// Appends an unboxed double value to the runtime frame.
 /// See [BoxDouble] for boxing it.
 class PushConstantDouble implements EvcOp {
-  PushConstantDouble(Runtime exec) : _value = exec._readFloat32();
+  PushConstantDouble(Runtime exec) : _value = exec._readFloat64();
 
   PushConstantDouble.make(this._value);
 
   final double _value;
 
-  static const int LEN = Evc.BASE_OPLEN + Evc.F32_LEN;
+  static const int LEN = Evc.BASE_OPLEN + Evc.F64_LEN;
 
   // Set value at position to constant
   @override
@@ -266,6 +266,19 @@ class BoxString implements EvcOp {
   String toString() => 'BoxString (L$_reg)';
 }
 
+/// Resolves a frame value expected to hold a list in its unboxed
+/// representation. Normally that is a raw [List] of boxed elements, but
+/// host-passed arguments skip the [Unbox] op, so a slot may also hold a
+/// boxed wrapper: a [$ValueView] (e.g. [$List.view]) is accessed through its
+/// [$unboxedView] so elements stay wrapped on read and writes reach the
+/// backing list, and any other [$Value] (e.g. [$List]) through its backing
+/// [$value] list so wrapping it again cannot double-box.
+List _listOnFrame(Object? value) => value is $ValueView
+    ? value.$unboxedView as List
+    : value is $Value
+    ? value.$value as List
+    : value as List;
+
 /// Boxes a list at the given location on the runtime frame.
 /// Expects all elements of the list already boxed, inheriting
 /// from [$Value].
@@ -281,7 +294,10 @@ class BoxList implements EvcOp {
   @override
   void run(Runtime runtime) {
     final reg = _reg;
-    runtime.frame[reg] = $List.wrap(<$Value>[...(runtime.frame[reg] as List)]);
+    // Wrap the list itself rather than a copy: a boxed list must stay
+    // aliased with its unboxed representation so mutations through either
+    // are visible in both, matching Dart reference semantics.
+    runtime.frame[reg] = $List.wrap(_listOnFrame(runtime.frame[reg]));
   }
 
   @override
@@ -394,7 +410,10 @@ class Unbox implements EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.frame[_reg] = (runtime.frame[_reg] as $Value).$value;
+    final value = runtime.frame[_reg] as $Value;
+    runtime.frame[_reg] = value is $ValueView
+        ? value.$unboxedView
+        : value.$value;
   }
 
   @override
@@ -435,7 +454,7 @@ class ListAppend extends EvcOp {
 
   @override
   void run(Runtime runtime) {
-    (runtime.frame[_reg] as List).add(runtime.frame[_value]);
+    _listOnFrame(runtime.frame[_reg]).add(runtime.frame[_value]);
   }
 
   @override
@@ -459,8 +478,9 @@ class IndexList extends EvcOp {
 
   @override
   void run(Runtime runtime) {
-    runtime.frame[runtime.frameOffset++] =
-        (runtime.frame[_position] as List)[runtime.frame[_index] as int];
+    runtime.frame[runtime.frameOffset++] = _listOnFrame(
+      runtime.frame[_position],
+    )[runtime.frame[_index] as int];
   }
 
   @override
@@ -488,7 +508,7 @@ class ListSetIndexed extends EvcOp {
   @override
   void run(Runtime runtime) {
     final frame = runtime.frame;
-    (frame[_position] as List)[frame[_index] as int] = frame[_value];
+    _listOnFrame(frame[_position])[frame[_index] as int] = frame[_value];
   }
 
   @override
@@ -716,4 +736,44 @@ class PushRecord implements EvcOp {
 
   @override
   String toString() => 'PushRecord (L$_fields, C$_const)';
+}
+
+/// A debug-only assertion that the value at [_reg] matches the boxing state the
+/// compiler believes it has: boxed values must be `$Value`s, unboxed values
+/// must not be. Emitted only when [Compiler.verifyBoxing] is enabled, so it
+/// pinpoints box/unbox drift at its source instead of surfacing as an opaque
+/// cast error several ops later. Null is treated as consistent with either
+/// state (a raw `null` and a `$null` are both legal representations).
+class AssertBoxState implements EvcOp {
+  AssertBoxState(Runtime runtime)
+    : _reg = runtime._readInt16(),
+      _expectBoxed = runtime._readUint8() > 0;
+
+  AssertBoxState.make(this._reg, this._expectBoxed);
+
+  final int _reg;
+  final bool _expectBoxed;
+
+  static const int LEN = Evc.BASE_OPLEN + Evc.I16_LEN + Evc.I8_LEN;
+
+  @override
+  void run(Runtime runtime) {
+    final value = runtime.frame[_reg];
+    if (value == null) {
+      return;
+    }
+    final isBoxed = value is $Value;
+    if (isBoxed != _expectBoxed) {
+      throw Exception(
+        'dart_eval box-state assertion failed at L$_reg: compiler expected '
+        '${_expectBoxed ? 'a boxed \$Value' : 'an unboxed value'} but found '
+        '${isBoxed ? 'a boxed \$Value' : 'an unboxed ${value.runtimeType}'}. '
+        'This indicates box/unbox drift in the compiler.',
+      );
+    }
+  }
+
+  @override
+  String toString() =>
+      'AssertBoxState (L$_reg, ${_expectBoxed ? 'boxed' : 'unboxed'})';
 }
