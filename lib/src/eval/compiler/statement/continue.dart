@@ -8,7 +8,10 @@ import 'package:dart_eval/src/eval/runtime/runtime.dart';
 /// Compiles a `continue` statement: cleans up scopes nested inside the loop
 /// body and jumps to the loop's update/condition section (resolved by
 /// [macroLoop] via [CompilerContext.resolveContinueReferences]).
-StatementInfo compileContinueStatement(ContinueStatement s, CompilerContext ctx) {
+StatementInfo compileContinueStatement(
+  ContinueStatement s,
+  CompilerContext ctx,
+) {
   if (s.label != null) {
     throw CompileError('Continue labels are not currently supported', s);
   }

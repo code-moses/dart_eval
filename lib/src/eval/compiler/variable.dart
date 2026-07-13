@@ -46,7 +46,7 @@ class Variable {
   }) : type = type.boxed == boxed ? type : type.copyWith(boxed: boxed),
        callingConvention =
            ((type == TypeRef(dartCoreFile, 'Function') ||
-                    type == TypeRef(dartCoreFile, 'dynamic')) &&
+                   type == TypeRef(dartCoreFile, 'dynamic')) &&
                methodOffset == null)
            ? CallingConvention.dynamic
            : (callingConvention ?? CallingConvention.static) /*,
