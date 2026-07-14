@@ -29,12 +29,6 @@ class TypeRef {
     this.nullable = false,
   });
 
-  /// Cache mapping file/library IDs to type names to [TypeRef]s.
-  static final _cache = <int, Map<String, TypeRef>>{};
-
-  /// Cache mapping [TypeRef]s to file/library IDs.
-  static final _inverseCache = <TypeRef, List<int>>{};
-
   final int file;
   final String name;
   final TypeRef? extendsType;
@@ -57,11 +51,11 @@ class TypeRef {
     int? fileRef,
   }) {
     TypeRef $type;
-    if (!_cache.containsKey(file)) {
-      _cache[file] = {};
+    if (!ctx.typeRefCache.containsKey(file)) {
+      ctx.typeRefCache[file] = {};
     }
 
-    final fileCache = _cache[file]!;
+    final fileCache = ctx.typeRefCache[file]!;
     if (!fileCache.containsKey(name)) {
       $type = (fileCache[name] = TypeRef(file, name));
     } else {
@@ -69,10 +63,10 @@ class TypeRef {
     }
 
     if (fileRef != null) {
-      if (!_inverseCache.containsKey($type)) {
-        _inverseCache[$type] = [];
+      if (!ctx.typeRefInverseCache.containsKey($type)) {
+        ctx.typeRefInverseCache[$type] = [];
       }
-      _inverseCache[$type]!.add(fileRef);
+      ctx.typeRefInverseCache[$type]!.add(fileRef);
     }
 
     ctx.typeRefIndexMap[$type] = ctx.typeNames.length;
@@ -619,7 +613,7 @@ class TypeRef {
       );
     }
 
-    final $cached = _cache[file]![name]!;
+    final $cached = ctx.typeRefCache[file]![name]!;
     if ($cached.resolved) {
       return $cached.copyWith(
         boxed: boxed,
@@ -845,11 +839,11 @@ class TypeRef {
       specifiedTypeArgs: resolvedSpecifiedTypeArgs,
     );
 
-    for (final $file in _inverseCache[this]!) {
+    for (final $file in ctx.typeRefInverseCache[this]!) {
       ctx.visibleTypes[$file]![name] ??= resolvedRef;
     }
 
-    final fileCache = _cache[file]!;
+    final fileCache = ctx.typeRefCache[file]!;
     if (fileCache[name] == null || !fileCache[name]!.resolved) {
       fileCache[name] = resolvedRef.copyWith(boxed: true);
     }

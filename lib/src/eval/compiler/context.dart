@@ -233,6 +233,15 @@ class CompilerContext with ScopeContext {
 
   Map<int, int> runtimeGlobalInitializerMap = {};
   Map<int, Map<String, TypeRef>> topLevelVariableInferredTypes = {};
+  /// Cache mapping file/library IDs to type names to [TypeRef]s. Lives on the
+  /// context rather than statically on [TypeRef]: library IDs are reassigned
+  /// per compilation, so a resolved type cached by one compilation must not
+  /// leak into the next.
+  final Map<int, Map<String, TypeRef>> typeRefCache = {};
+
+  /// Cache mapping [TypeRef]s to the file/library IDs they are visible from.
+  final Map<TypeRef, List<int>> typeRefInverseCache = {};
+
   Map<TypeRef, int> typeRefIndexMap = {};
   Map<String, int> libraryMap = {};
   List<TypeRef> runtimeTypeList = [];

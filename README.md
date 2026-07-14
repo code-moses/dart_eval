@@ -123,6 +123,10 @@
 >   helper function using a different imported getter failed to compile)
 > - A bare `as List` cast (no type arguments) no longer crashes the compiler when the value is
 >   subsequently boxed (e.g. by string interpolation)
+> - Compiling multiple programs in the same isolate (e.g. scripts compiled and run concurrently
+>   from async code) no longer crashes in `TypeRef.getRuntimeIndices` with a null check error:
+>   the type resolution caches were static, so a class hierarchy resolved by one compilation
+>   leaked into later ones; they now live on the per-compilation `CompilerContext`
 >
 > **Documented patterns**
 > - [test/plugin_globals_test.dart](test/plugin_globals_test.dart) demonstrates providing
@@ -130,7 +134,7 @@
 >   bridge class with `[]`/`[]=` plus `addSource` top-level getters — so scripts are compiled
 >   and cached once as EVC bytecode while host values change freely between executions.
 >
-> All fixes are covered by regression tests; the full upstream test suite passes (575 tests,
+> All fixes are covered by regression tests; the full upstream test suite passes (578 tests,
 > none skipped). [test/dart_semantics_test.dart](test/dart_semantics_test.dart) additionally
 > asserts, feature by feature, that evaluated code matches what the equivalent native Dart
 > program produces.
