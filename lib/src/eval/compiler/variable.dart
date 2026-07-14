@@ -149,7 +149,10 @@ class Variable {
     } else if (type == CoreTypes.bool.ref(ctx)) {
       ctx.pushOp(BoxBool.make(scopeFrameOffset), BoxBool.LEN);
     } else if (type == CoreTypes.list.ref(ctx)) {
-      if (!type.specifiedTypeArgs[0].boxed) {
+      // A List type without specified type args (e.g. from a bare `as List`
+      // cast) is treated as List<dynamic>, whose contents are already boxed.
+      if (type.specifiedTypeArgs.isNotEmpty &&
+          !type.specifiedTypeArgs[0].boxed) {
         v2 = boxListContents(ctx, this);
       }
       ctx.pushOp(BoxList.make(v2.scopeFrameOffset), BoxList.LEN);

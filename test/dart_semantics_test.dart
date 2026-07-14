@@ -920,6 +920,22 @@ void main() {
         $String('true,true'),
       );
     });
+
+    test('bare as-List cast (no type args) supports boxing and members', () {
+      // Regression: a cast to `List` without type arguments produced a type
+      // with empty specifiedTypeArgs, which crashed boxIfNeeded when the
+      // value was subsequently boxed (e.g. by string interpolation).
+      expect(
+        run(r'''
+          dynamic make() => [1, 2, 3];
+          String main() {
+            final l = make() as List;
+            return '${l.length}:$l';
+          }
+        '''),
+        $String('3:[1, 2, 3]'),
+      );
+    });
   });
 
   group('Async semantics', () {
