@@ -118,8 +118,19 @@
 >   matches `[var a, var b]` and a wrong-length or null subject fails instead of crashing
 > - Structural pattern type tests are null-safe: a null subject (e.g. an absent map key) fails
 >   the match instead of crashing on the `is` check
+> - Tree shaking keeps imported declarations used by *sibling* declarations of a non-entrypoint
+>   library (previously only the first declaration's dependencies survived, so e.g. the second
+>   helper function using a different imported getter failed to compile)
+> - A bare `as List` cast (no type arguments) no longer crashes the compiler when the value is
+>   subsequently boxed (e.g. by string interpolation)
 >
-> All fixes are covered by regression tests; the full upstream test suite passes (566 tests,
+> **Documented patterns**
+> - [test/plugin_globals_test.dart](test/plugin_globals_test.dart) demonstrates providing
+>   host-defined globals (e.g. `currententry['quantity'] as int`) through an `EvalPlugin` — a
+>   bridge class with `[]`/`[]=` plus `addSource` top-level getters — so scripts are compiled
+>   and cached once as EVC bytecode while host values change freely between executions.
+>
+> All fixes are covered by regression tests; the full upstream test suite passes (575 tests,
 > none skipped). [test/dart_semantics_test.dart](test/dart_semantics_test.dart) additionally
 > asserts, feature by feature, that evaluated code matches what the equivalent native Dart
 > program produces.
