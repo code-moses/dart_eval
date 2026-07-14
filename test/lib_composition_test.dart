@@ -231,6 +231,35 @@ void main() {
       expect(result, 4);
     });
 
+    test('Tree shaking keeps imports used by sibling declarations', () {
+      // Regression: the used-declaration worklist deduplicated import edges
+      // per (library, import) pair, so in a non-entrypoint library only the
+      // first processed declaration marked its imported dependencies as used;
+      // dependencies referenced only by its sibling declarations were
+      // tree-shaken away and failed to resolve during compilation.
+      final program = compiler.compile({
+        'example': {
+          'main.dart': '''
+            import 'package:example/helper.dart';
+            int main() => first() + second();
+          ''',
+          'helper.dart': '''
+            import 'package:example/values.dart';
+            int first() => one();
+            int second() => two();
+          ''',
+          'values.dart': '''
+            int one() => 1;
+            int two() => 2;
+          ''',
+        },
+      });
+
+      final runtime = Runtime.ofProgram(program);
+      final result = runtime.executeLib('package:example/main.dart', 'main');
+      expect(result, 3);
+    });
+
     test('Relative exports', () {
       final program = compiler.compile({
         'example': {

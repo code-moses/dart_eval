@@ -1313,7 +1313,12 @@ Map<Library, Map<String, DeclarationOrPrefix>> _resolveImportsAndExports(
       }
 
       for (final import in importsWithImplicitSelf) {
-        final iid = '${library.uri}:${import.uri}';
+        // Deduplicate per declaration, not just per import: each used
+        // declaration propagates its own identifier set, so a single
+        // import edge must be scanned once for every declaration that
+        // uses it (otherwise only the first declaration's identifiers
+        // mark anything as used and later ones get tree-shaken away).
+        final iid = '${library.uri}:${import.uri}:$dec';
         if (processedImports.contains(iid)) {
           continue;
         }
