@@ -91,6 +91,36 @@ void main() {
       }, prints('null\nx\ncast error\n'));
     });
 
+    test('"as" cast from nullable to non-nullable of the same type', () {
+      final runtime = compiler.compileWriteAndLoad({
+        'eval_test': {
+          'main.dart': '''
+            String? maybeStr(bool b) => b ? "hello" : null;
+            int? maybeInt(bool b) => b ? 5 : null;
+
+            void main() {
+              print(maybeStr(true) as String);
+              print((maybeInt(true) as int) + 1);
+              try {
+                print(maybeStr(false) as String);
+              } catch (e) {
+                print("cast error");
+              }
+              try {
+                print(maybeInt(false) as int);
+              } catch (e) {
+                print("cast error 2");
+              }
+            }
+          ''',
+        },
+      });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('hello\n6\ncast error\ncast error 2\n'));
+    });
+
     test('Is with Object type and branch', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

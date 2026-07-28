@@ -16,8 +16,10 @@ Variable compileAsExpression(AsExpression e, CompilerContext ctx) {
   var V = compileExpression(e.expression, ctx);
   final slot = TypeRef.fromAnnotation(ctx, ctx.library, e.type);
 
-  /// If the type is the slot, we can just return
-  if (V.type == slot) {
+  // If the value's type already fits the slot including nullability, we can
+  // just return. TypeRef == ignores nullability, so a nullable value cast to
+  // a non-nullable type must fall through to the runtime null test.
+  if (V.type == slot && (!V.type.nullable || slot.nullable)) {
     return V;
   }
 
