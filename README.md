@@ -14,6 +14,12 @@
 >   *nullable* type (`myValue as MyType?`) evaluates to null instead of throwing, composing
 >   with `??` and `?.`. Casts to non-nullable types remain strict. Defaults to off (standard
 >   Dart semantics).
+> - `Compiler.softNumericCasts`: tolerant numeric casts — when enabled, an `as int` or
+>   `as double` cast converts numeric values instead of throwing: `myInt as double` yields
+>   `myInt.toDouble()`, `myDouble as int` truncates via `toInt()`. Also applies to
+>   `dynamic`/`Object`-typed values holding a num at runtime. Null and non-numeric values
+>   still throw a TypeError (unless the target is nullable, which accepts null, or
+>   `softNullableCasts` applies). Defaults to off (standard Dart semantics).
 > - `Compiler.verifyBoxing`: debugging aid that emits runtime assertions at every
 >   concrete-typed box/unbox transition, so box-state drift between the compiler's belief and
 >   the actual runtime representation fails fast at the offending op instead of surfacing as a
@@ -35,6 +41,9 @@
 > **Null safety & nullability fixes**
 > - `as`/`is` respect nullability (`null as String?`, `null is String?`); `as` no longer
 >   crashes on unboxed values
+> - Casting a nullable value to its non-nullable counterpart (`myNullableStr as String`)
+>   performs the runtime null test and throws on null, instead of passing the value through
+>   unchecked
 > - `==`/`!=` never invoke a user-defined `operator ==` with a null operand (Dart semantics)
 > - Null-aware access on unboxed nullable receivers, chained null-aware operators
 >   (`s?.trim()?.length`), string interpolation of null values, and the null-aware spread
