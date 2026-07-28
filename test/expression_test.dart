@@ -744,6 +744,95 @@ void main() {
       }, prints('null\nfallback\ntext\n4\nnull\nstrict throw\n'));
     });
 
+    test('Soft numeric casts (softNumericCasts option)', () {
+      final runtime = (Compiler()..softNumericCasts = true).compileWriteAndLoad(
+        {
+          'eval_test': {
+            'main.dart': '''
+            void main() {
+              int i = 3;
+              double d = 2.5;
+              num n = 4.7;
+              // statically-known numeric values are converted
+              print(i as double);
+              print(d as int);
+              print(n as int);
+              print(n as double);
+              print((i as double) + 0.25);
+              // dynamic values holding a num are converted at runtime
+              dynamic dyn = 5;
+              print(dyn as double);
+              dyn = 1.9;
+              print(dyn as int);
+              // nullable numeric sources are converted when non-null
+              int? ni = 7;
+              print(ni as double);
+              // casting to num needs no conversion
+              print(i as num);
+              // nullable targets convert nums and accept null
+              print(i as double?);
+              dyn = null;
+              print(dyn as double?);
+              // null cast to a non-nullable numeric type still throws
+              try {
+                print(dyn as double);
+              } catch (e) {
+                print("null throw");
+              }
+              // non-numeric values still throw
+              dyn = "text";
+              try {
+                print(dyn as int);
+              } catch (e) {
+                print("string throw");
+              }
+            }
+          ''',
+          },
+        },
+      );
+
+      expect(
+        () {
+          runtime.executeLib('package:eval_test/main.dart', 'main');
+        },
+        prints(
+          '3.0\n2\n4\n4.7\n3.25\n5.0\n1\n7.0\n3\n3.0\nnull\nnull throw\nstring throw\n',
+        ),
+      );
+    });
+
+    test('Soft numeric casts combined with softNullableCasts', () {
+      final runtime =
+          (Compiler()
+                ..softNumericCasts = true
+                ..softNullableCasts = true)
+              .compileWriteAndLoad({
+                'eval_test': {
+                  'main.dart': '''
+            void main() {
+              dynamic dyn = 4;
+              // numeric conversion takes precedence over the nullable soft cast
+              print(dyn as double?);
+              // non-num values soft-cast to null
+              dyn = "text";
+              print(dyn as double?);
+              // non-nullable targets remain strict for non-num values
+              try {
+                print(dyn as double);
+              } catch (e) {
+                print("strict throw");
+              }
+            }
+          ''',
+                },
+              });
+
+      expect(() {
+        runtime.executeLib('package:eval_test/main.dart', 'main');
+      }, prints('4.0\nnull\nstrict throw\n'));
+    });
+
     test('"as" cast on unboxed value', () {
       final runtime = compiler.compileWriteAndLoad({
         'eval_test': {

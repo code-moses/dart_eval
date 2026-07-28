@@ -192,6 +192,10 @@ class CompilerContext with ScopeContext {
   /// nullable type evaluates to null instead of throwing.
   bool softNullableCasts = false;
 
+  /// See [Compiler.softNumericCasts]: when enabled, casting a numeric value
+  /// to `int` or `double` converts it instead of throwing.
+  bool softNumericCasts = false;
+
   /// See [Compiler.verifyBoxing]: when enabled, box/unbox transitions emit
   /// runtime [AssertBoxState] ops that check the slot's representation matches
   /// the compiler's belief, surfacing box/unbox drift at its source.
@@ -233,6 +237,7 @@ class CompilerContext with ScopeContext {
 
   Map<int, int> runtimeGlobalInitializerMap = {};
   Map<int, Map<String, TypeRef>> topLevelVariableInferredTypes = {};
+
   /// Cache mapping file/library IDs to type names to [TypeRef]s. Lives on the
   /// context rather than statically on [TypeRef]: library IDs are reassigned
   /// per compilation, so a resolved type cached by one compilation must not

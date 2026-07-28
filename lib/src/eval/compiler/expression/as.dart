@@ -3,6 +3,7 @@ import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/null_check.dart';
 import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/statement/statement.dart';
@@ -23,6 +24,13 @@ Variable compileAsExpression(AsExpression e, CompilerContext ctx) {
   // Special case: if casting null to a nullable type, allow it
   if (V.type == CoreTypes.nullType.ref(ctx) && slot.nullable) {
     return V.copyWithUpdate(ctx, type: slot);
+  }
+
+  if (ctx.softNumericCasts) {
+    final soft = _compileSoftNumericCast(ctx, V, slot, e);
+    if (soft != null) {
+      return soft;
+    }
   }
 
   // If the value is statically known to fit the slot, the cast can never
@@ -70,6 +78,108 @@ Variable compileAsExpression(AsExpression e, CompilerContext ctx) {
   // For all other types, just inform the compiler
   // (todo) Mixins may need different behavior
   return V.copyWithUpdate(ctx, type: slot.copyWith(boxed: V.type.boxed));
+}
+
+/// Compiles a soft numeric cast (see [Compiler.softNumericCasts]): casting a
+/// numeric value to `int` or `double` converts it with toInt()/toDouble()
+/// instead of throwing. Returns null if the cast is not numeric-convertible
+/// (leaving the standard cast logic to handle it): the target must be
+/// int/double, and the value must be statically numeric, `dynamic`, `Object`,
+/// or a nullable numeric. Null and non-num runtime values keep standard cast
+/// semantics.
+Variable? _compileSoftNumericCast(
+  CompilerContext ctx,
+  Variable V,
+  TypeRef slot,
+  AsExpression e,
+) {
+  final intType = CoreTypes.int.ref(ctx);
+  final doubleType = CoreTypes.double.ref(ctx);
+  final numType = CoreTypes.num.ref(ctx);
+
+  // Only int and double targets need conversion; a numeric value already is
+  // a num, so `as num` works natively. (TypeRef == ignores nullability.)
+  if (slot != intType && slot != doubleType) {
+    return null;
+  }
+  final method = slot == intType ? 'toInt' : 'toDouble';
+
+  // A literal null must keep failing on non-nullable targets
+  if (V.type == CoreTypes.nullType.ref(ctx)) {
+    return null;
+  }
+
+  // A statically-known, non-nullable numeric value can be converted directly.
+  // (An exact type match was already returned by the caller.)
+  if (!V.type.nullable &&
+      V.type.isAssignableTo(ctx, numType, forceAllowDynamic: false)) {
+    var conv = V.invoke(ctx, method, []).result;
+    if (!slot.nullable) {
+      conv = conv.unboxIfNeeded(ctx);
+    }
+    return conv.copyWith(
+      type: slot.copyWith(boxed: conv.type.boxed),
+      concreteTypes: [],
+    );
+  }
+
+  // Otherwise the value must at least possibly hold a num at runtime
+  final couldBeNum =
+      V.type == CoreTypes.dynamic.ref(ctx) ||
+      V.type == CoreTypes.object.ref(ctx) ||
+      V.type
+          .copyWith(nullable: false)
+          .isAssignableTo(ctx, numType, forceAllowDynamic: false);
+  if (!couldBeNum) {
+    return null;
+  }
+
+  // out = V is num ? V.toInt()/toDouble() : <standard cast semantics>
+  V = V.boxIfNeeded(ctx);
+  final out = BuiltinValue().push(ctx).boxIfNeeded(ctx);
+  ctx.pushOp(
+    IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[numType]!, false),
+    IsType.length,
+  );
+  final vIsNum = Variable.alloc(ctx, CoreTypes.bool.ref(ctx), boxed: false);
+  macroBranch(
+    ctx,
+    null,
+    condition: (ctx) => vIsNum,
+    thenBranch: (ctx, rt) {
+      final conv = V.invoke(ctx, method, []).result.boxIfNeeded(ctx);
+      ctx.pushOp(
+        CopyValue.make(out.scopeFrameOffset, conv.scopeFrameOffset),
+        CopyValue.LEN,
+      );
+      return StatementInfo(-1);
+    },
+    elseBranch: (ctx, rt) {
+      // Not a num: standard cast semantics. A non-num value can never satisfy
+      // an int/double test, so the only passing case is null to a nullable
+      // target — where [out] already holds null.
+      if (slot.nullable) {
+        if (!ctx.softNullableCasts) {
+          macroBranch(
+            ctx,
+            null,
+            condition: (ctx) => compileNotNullCheck(ctx, V),
+            thenBranch: (ctx, rt) {
+              _typeTestAndAssert(ctx, V, slot);
+              return StatementInfo(-1);
+            },
+          );
+        }
+      } else {
+        _typeTestAndAssert(ctx, V, slot);
+      }
+      return StatementInfo(-1);
+    },
+    source: e,
+  );
+  // Clear the null concreteTypes inherited from the null initializer (see
+  // _compileSoftCast)
+  return out.copyWith(type: slot.copyWith(boxed: true), concreteTypes: []);
 }
 
 /// Compiles a soft cast to a nullable type (see [Compiler.softNullableCasts]):

@@ -85,6 +85,15 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
   /// mismatch, like standard Dart.
   var softNullableCasts = false;
 
+  /// When enabled, an 'as' cast to `int` or `double` converts numeric values
+  /// instead of throwing: `myInt as double` yields `myInt.toDouble()`, and
+  /// `myDouble as int` yields `myDouble.toInt()` (truncating). This also
+  /// applies to `dynamic`/`Object`-typed values holding a num at runtime.
+  /// Null and non-numeric values still throw a TypeError as in standard Dart
+  /// (unless the target type is nullable, which accepts null, or
+  /// [softNullableCasts] applies).
+  var softNumericCasts = false;
+
   /// When enabled, the compiler emits runtime assertions at every box/unbox
   /// transition that verify a slot's actual representation (boxed `$Value` vs
   /// raw value) matches what the compiler believes it to be. Intended for
@@ -204,6 +213,7 @@ class Compiler implements BridgeDeclarationRegistry, EvalPluginRegistry {
     // Create a compilation context
     _ctx = CompilerContext(0, version: version)
       ..softNullableCasts = softNullableCasts
+      ..softNumericCasts = softNumericCasts
       ..verifyBoxing = verifyBoxing;
 
     for (final plugin in _plugins) {
