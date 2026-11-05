@@ -65,14 +65,29 @@ StatementInfo macroLoop(
   });
 
   ctx.labels.add(label);
+  ctx.continueStates[label] = save;
   final statementResult = body(ctx, expectedReturnType);
   ctx.labels.removeLast();
+
+  final bodyFallsThrough =
+      !(statementResult.willAlwaysThrow || statementResult.willAlwaysReturn);
+  final hasContinues = ctx.continueReferences[label]?.isNotEmpty ?? false;
+
+  // Bring the fall-through path to the same boxing state that `continue`
+  // statements reconcile to, as both paths meet at the continue target.
+  if (bodyFallsThrough) {
+    ctx.resolveBranchStateDiscontinuity(save);
+  } else if (hasContinues) {
+    // Only reachable through `continue`, which already reconciled to `save`.
+    ctx.restoreBoxingState(save);
+  }
 
   // `continue` jumps here: past the body, into the update (for-loops) or
   // trailing condition (do-while) before looping back around.
   ctx.resolveContinueReferences(label);
 
-  if (!(statementResult.willAlwaysThrow || statementResult.willAlwaysReturn)) {
+  // A body that always returns or throws still loops if it contains `continue`
+  if (bodyFallsThrough || hasContinues) {
     if (update != null && !updateBeforeBody) {
       update(ctx);
     }
@@ -96,7 +111,11 @@ StatementInfo macroLoop(
 
     ctx.pushOp(JumpConstant.make(loopStart), JumpConstant.LEN);
   } else {
-    pops = 0;
+    // Nothing falls through to the end of the iteration scope, so it is only
+    // closed at compile time. The loop can still be left through its
+    // condition, whose allocations are popped at the exit landing.
+    ctx.endAllocScope(popValues: false);
+    if (condition == null || alwaysLoopOnce) pops = 0;
   }
 
   if (rewritePos != null) {
@@ -119,5 +138,14 @@ StatementInfo macroLoop(
   ctx.endAllocScope(popAdjust: pops);
   ctx.resolveLabel(label);
 
-  return statementResult;
+  // The loop itself may run zero times or leave through its condition or a
+  // `break`, so it only always returns/throws if it can never be left.
+  final neverLeaves =
+      !bodyFallsThrough &&
+      !hasContinues &&
+      (alwaysLoopOnce || condition == null) &&
+      !ctx.labelReferences.containsKey(label);
+  return neverLeaves
+      ? statementResult
+      : StatementInfo(statementResult.position);
 }

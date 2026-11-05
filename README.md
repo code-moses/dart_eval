@@ -136,6 +136,19 @@
 >   from async code) no longer crashes in `TypeRef.getRuntimeIndices` with a null check error:
 >   the type resolution caches were static, so a class hierarchy resolved by one compilation
 >   leaked into later ones; they now live on the per-compilation `CompilerContext`
+> - `continue` no longer crashes when a variable is boxed later in the loop body (e.g.
+>   `for (final x in xs) { if (x == 2) continue; list.add(x); }` failed with
+>   "`List<dynamic>` is not a subtype of `$Value`" on the iteration that took the `continue`):
+>   the fall-through and `continue` paths now both reconcile to the loop-entry box state
+>   before they meet at the continue target
+> - A loop whose body always returns or throws (`for (final x in xs) { if (x < 3) continue;
+>   return x; }`) loops correctly through `continue` instead of jumping past the end of the
+>   program, and no longer makes the compiler treat the loop itself as always returning:
+>   code after it (`return null;`) is compiled and runs when the loop runs zero times or its
+>   condition ends it, and locals declared after the loop get the right frame slots
+> - Local functions can declare record-typed parameters (`bool overlaps((int, int) o) => ...`);
+>   record types had no runtime type index of their own, which crashed the compiler with a
+>   null check error — they are now represented by `Record` at runtime
 >
 > **Documented patterns**
 > - [test/plugin_globals_test.dart](test/plugin_globals_test.dart) demonstrates providing
@@ -143,7 +156,7 @@
 >   bridge class with `[]`/`[]=` plus `addSource` top-level getters — so scripts are compiled
 >   and cached once as EVC bytecode while host values change freely between executions.
 >
-> All fixes are covered by regression tests; the full upstream test suite passes (578 tests,
+> All fixes are covered by regression tests; the full upstream test suite passes (591 tests,
 > none skipped). [test/dart_semantics_test.dart](test/dart_semantics_test.dart) additionally
 > asserts, feature by feature, that evaluated code matches what the equivalent native Dart
 > program produces.

@@ -77,4 +77,49 @@ void main() {
       prints('21\n'),
     );
   });
+
+  test('local function with record parameter capturing a record', () {
+    final compiler = Compiler();
+    final runtime = compiler.compileWriteAndLoad({
+      't': {
+        'main.dart': r'''
+          (int, int)? span(int x) => x < 0 ? null : (x, x + 2);
+          void main() {
+            final own = span(1);
+            if (own == null) return;
+            bool overlaps((int, int) o) => o.$1 < own.$2 && own.$1 < o.$2;
+            print(overlaps((2, 5)));
+            print(overlaps((3, 5)));
+          }
+        ''',
+      },
+    });
+    expect(
+      () => runtime.executeLib('package:t/main.dart', 'main'),
+      prints('true\nfalse\n'),
+    );
+  });
+
+  test(
+    'local function with nullable and named-field record parameters (non-null args)',
+    () {
+      final compiler = Compiler();
+      final runtime = compiler.compileWriteAndLoad({
+        't': {
+          'main.dart': r'''
+          void main() {
+            int sum((int, int)? r) => r == null ? 0 : r.$1 + r.$2;
+            int area(({int w, int h}) r) => r.w * r.h;
+            print(sum((1, 2)));
+                        print(area((w: 3, h: 4)));
+          }
+        ''',
+        },
+      });
+      expect(
+        () => runtime.executeLib('package:t/main.dart', 'main'),
+        prints('3\n12\n'),
+      );
+    },
+  );
 }

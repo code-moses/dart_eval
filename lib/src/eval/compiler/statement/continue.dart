@@ -31,6 +31,13 @@ StatementInfo compileContinueStatement(
     ctx.labels[i].cleanup(ctx);
   }
   final label = ctx.labels[index];
+  // The continue target is shared with the body's fall-through path, which is
+  // reconciled to the loop-entry boxing state. Do the same here, otherwise
+  // variables the body boxes later on are unboxed twice (or not at all).
+  final loopState = ctx.continueStates[label];
+  if (loopState != null) {
+    ctx.resolveBranchStateDiscontinuity(loopState);
+  }
   final offset = ctx.pushOp(JumpConstant.make(-1), JumpConstant.LEN);
   (ctx.continueReferences[label] ??= {}).add(offset);
   ctx.restoreState(currentState);

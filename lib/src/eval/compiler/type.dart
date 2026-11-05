@@ -852,13 +852,21 @@ class TypeRef {
   }
 
   Set<int> getRuntimeIndices(CompilerContext ctx) {
+    // Record types have no runtime index of their own (see [toRuntimeType]),
+    // they are matched through their `Record` supertype.
+    final ownIndex = ctx.typeRefIndexMap[this];
     return {
-      ctx.typeRefIndexMap[this]!,
+      if (ownIndex != null || recordFields.isEmpty) ownIndex!,
       for (final a in allSupertypes) ...a.getRuntimeIndices(ctx),
     };
   }
 
   RuntimeType toRuntimeType(CompilerContext ctx) {
+    // Record types are built ad hoc from their annotation and never get a
+    // runtime type index of their own, so they are represented by `Record`.
+    if (recordFields.isNotEmpty && !ctx.typeRefIndexMap.containsKey(this)) {
+      return CoreTypes.record.ref(ctx).toRuntimeType(ctx);
+    }
     final ta = [for (final t in specifiedTypeArgs) t.toRuntimeType(ctx)];
     return RuntimeType(ctx.typeRefIndexMap[this]!, ta);
   }

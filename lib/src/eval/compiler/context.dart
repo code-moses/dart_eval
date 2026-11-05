@@ -262,6 +262,11 @@ class CompilerContext with ScopeContext {
   /// label; resolved by [resolveContinueReferences] to the loop's
   /// update/condition section.
   Map<CompilerLabel, Set<int>> continueReferences = {};
+
+  /// Box/unbox state of the locals at loop entry, keyed by loop label. A
+  /// `continue` reconciles to this state before jumping, matching the state the
+  /// loop body's fall-through path is reconciled to before the continue target.
+  Map<CompilerLabel, ContextSaveState> continueStates = {};
   final List<Variable> caughtExceptions = [];
   PrescanContext? preScan;
 
