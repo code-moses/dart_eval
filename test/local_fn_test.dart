@@ -122,4 +122,30 @@ void main() {
       );
     },
   );
+
+  test('local function accepts null for nullable parameters', () {
+    final compiler = Compiler();
+    final runtime = compiler.compileWriteAndLoad({
+      't': {
+        'main.dart': r'''
+          void main() {
+            int count(int? x) => x == null ? 0 : x + 1;
+            int size(List? l, {String? label}) => l == null ? -1 : l.length;
+            String text((int, int)? r) => r == null ? 'none' : '${r.$1}-${r.$2}';
+            print(count(1));
+            print(count(null));
+            print(size([1, 2]));
+            print(size(null));
+            print(size(null, label: null));
+            print(text((1, 2)));
+            print(text(null));
+          }
+        ''',
+      },
+    });
+    expect(
+      () => runtime.executeLib('package:t/main.dart', 'main'),
+      prints('2\n0\n2\n-1\n-1\n1-2\nnone\n'),
+    );
+  });
 }

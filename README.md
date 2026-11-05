@@ -149,6 +149,9 @@
 > - Local functions can declare record-typed parameters (`bool overlaps((int, int) o) => ...`);
 >   record types had no runtime type index of their own, which crashed the compiler with a
 >   null check error — they are now represented by `Record` at runtime
+> - Local functions accept `null` for nullable parameters (`int count(int? x) => ...; count(null)`),
+>   positional and named; an argument of static type `Null` previously failed the runtime
+>   argument type check with "Cannot invoke function with the given arguments"
 >
 > **Documented patterns**
 > - [test/plugin_globals_test.dart](test/plugin_globals_test.dart) demonstrates providing
@@ -156,7 +159,7 @@
 >   bridge class with `[]`/`[]=` plus `addSource` top-level getters — so scripts are compiled
 >   and cached once as EVC bytecode while host values change freely between executions.
 >
-> All fixes are covered by regression tests; the full upstream test suite passes (591 tests,
+> All fixes are covered by regression tests; the full upstream test suite passes (593 tests,
 > none skipped). [test/dart_semantics_test.dart](test/dart_semantics_test.dart) additionally
 > asserts, feature by feature, that evaluated code matches what the equivalent native Dart
 > program produces.

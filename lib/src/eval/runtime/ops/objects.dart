@@ -14,17 +14,23 @@ class _PaddedArgs with ListMixin<$Value?> {
   int get length => _args.length;
 
   @override
-  set length(int newLength) => throw UnsupportedError('Cannot resize argument list');
+  set length(int newLength) =>
+      throw UnsupportedError('Cannot resize argument list');
 
   @override
-  $Value? operator [](int index) => index < _args.length ? _args[index] as $Value? : null;
+  $Value? operator [](int index) =>
+      index < _args.length ? _args[index] as $Value? : null;
 
   @override
-  void operator []=(int index, $Value? value) => throw UnsupportedError('Cannot modify argument list');
+  void operator []=(int index, $Value? value) =>
+      throw UnsupportedError('Cannot modify argument list');
 }
 
 class InvokeDynamic implements EvcOp {
-  InvokeDynamic(Runtime runtime) : _location = runtime._readInt16(), _methodIdx = runtime._readInt32(), _targetInArgs = runtime._readUint8() > 0;
+  InvokeDynamic(Runtime runtime)
+    : _location = runtime._readInt16(),
+      _methodIdx = runtime._readInt32(),
+      _targetInArgs = runtime._readUint8() > 0;
 
   InvokeDynamic.make(this._location, this._methodIdx, this._targetInArgs);
 
@@ -75,17 +81,25 @@ class InvokeDynamic implements EvcOp {
         final totalPositionalArgCount = object.positionalArgTypes.length;
         final totalNamedArgCount = object.sortedNamedArgs.length;
 
-        if (csPosArgTypes.length < object.requiredPositionalArgCount || csPosArgTypes.length > totalPositionalArgCount) {
+        if (csPosArgTypes.length < object.requiredPositionalArgCount ||
+            csPosArgTypes.length > totalPositionalArgCount) {
           throw ArgumentError(
             'FunctionPtr: Cannot invoke function with the given arguments (unacceptable # of positional arguments). '
             '$totalPositionalArgCount >= ${csPosArgTypes.length} >= ${object.requiredPositionalArgCount}',
           );
         }
 
+        // Parameter types do not encode nullability, so an argument of type
+        // Null (e.g. a `null` literal) is accepted for any parameter
+        final nullType = runtime.lookupType(CoreTypes.nullType);
+
         var i = 0, j = 0;
         while (i < csPosArgTypes.length) {
-          if (!csPosArgTypes[i].isAssignableTo(object.positionalArgTypes[i])) {
-            throw ArgumentError('FunctionPtr: Cannot invoke function with the given arguments');
+          if (csPosArgTypes[i].rt != nullType &&
+              !csPosArgTypes[i].isAssignableTo(object.positionalArgTypes[i])) {
+            throw ArgumentError(
+              'FunctionPtr: Cannot invoke function with the given arguments',
+            );
           }
           i++;
         }
@@ -97,11 +111,14 @@ class InvokeDynamic implements EvcOp {
         final tl = totalNamedArgCount - 1;
         while (j < cl) {
           if (i > tl) {
-            throw ArgumentError('FunctionPtr: Cannot invoke function with the given arguments');
+            throw ArgumentError(
+              'FunctionPtr: Cannot invoke function with the given arguments',
+            );
           }
           final t = csNamedArgTypes[j];
           final ti = object.sortedNamedArgTypes[i];
-          if (object.sortedNamedArgs[i] == csNamedArgs[j] && t.isAssignableTo(ti)) {
+          if (object.sortedNamedArgs[i] == csNamedArgs[j] &&
+              (t.rt == nullType || t.isAssignableTo(ti))) {
             j++;
           }
           i++;
@@ -109,8 +126,13 @@ class InvokeDynamic implements EvcOp {
 
         runtime.args = [
           if (object.$prev != null) object.$prev,
-          for (i = 0; i < object.requiredPositionalArgCount; i++) runtime.args[i + 3],
-          for (i = object.requiredPositionalArgCount; i < totalPositionalArgCount; i++)
+          for (i = 0; i < object.requiredPositionalArgCount; i++)
+            runtime.args[i + 3],
+          for (
+            i = object.requiredPositionalArgCount;
+            i < totalPositionalArgCount;
+            i++
+          )
             if (cp > i) runtime.args[i + 3] else null,
           for (i = 0; i < object.sortedNamedArgs.length; i++)
             if (cl > i) runtime.args[i + 3 + totalPositionalArgCount] else null,
@@ -125,7 +147,9 @@ class InvokeDynamic implements EvcOp {
       // original instance so inherited core Object methods (toString,
       // hashCode, ==) resolve via getCoreObjectProperty instead of crashing.
       final rawTarget = object ?? runtime.frame[_location];
-      final target = rawTarget is $Instance ? rawTarget : runtime.wrapAlways(rawTarget) as $Instance;
+      final target = rawTarget is $Instance
+          ? rawTarget
+          : runtime.wrapAlways(rawTarget) as $Instance;
       final EvalFunction method;
       try {
         method = target.$getProperty(runtime, method0) as EvalFunction;
@@ -144,13 +168,19 @@ class InvokeDynamic implements EvcOp {
       if (method is EvalStaticFunctionPtr) {
         // An interpreted method (e.g. on a subclassed bridge class): expects
         // `this` at args[0].
-        args = (_targetInArgs ? runtime.args : [runtime.frame[_location], ...runtime.args]).cast();
+        args =
+            (_targetInArgs
+                    ? runtime.args
+                    : [runtime.frame[_location], ...runtime.args])
+                .cast();
       } else {
         // Builtin/bridge methods receive the target separately, so drop it
         // from the args if the compiler pushed it (e.g. a `dynamic` receiver).
         // Wrap the args so that missing optional arguments read as null,
         // matching the null-padding the compiler emits at static call sites.
-        args = _PaddedArgs(_targetInArgs ? runtime.args.sublist(1) : runtime.args);
+        args = _PaddedArgs(
+          _targetInArgs ? runtime.args.sublist(1) : runtime.args,
+        );
       }
       try {
         runtime.returnValue = method.call(runtime, target, args);
@@ -165,17 +195,26 @@ class InvokeDynamic implements EvcOp {
   /// Throws a guest-catchable [NoSuchMethodError] for a dynamic invocation of
   /// [method] that the receiver [target] does not have.
   void _throwNoSuchMethod(Runtime runtime, $Instance target, String method) {
-    final invocation = Invocation.method(Symbol(method), [for (final arg in runtime.args) arg is $Value ? arg.$reified : arg]);
+    final invocation = Invocation.method(Symbol(method), [
+      for (final arg in runtime.args) arg is $Value ? arg.$reified : arg,
+    ]);
     runtime.args = [];
-    runtime.$throw($NoSuchMethodError.wrap(NoSuchMethodError.withInvocation(target.$reified, invocation)));
+    runtime.$throw(
+      $NoSuchMethodError.wrap(
+        NoSuchMethodError.withInvocation(target.$reified, invocation),
+      ),
+    );
   }
 
   @override
-  String toString() => 'InvokeDynamic (L$_location.C$_methodIdx${_targetInArgs ? ', target in args' : ''})';
+  String toString() =>
+      'InvokeDynamic (L$_location.C$_methodIdx${_targetInArgs ? ', target in args' : ''})';
 }
 
 class CheckEq implements EvcOp {
-  CheckEq(Runtime runtime) : _value1 = runtime._readInt16(), _value2 = runtime._readInt16();
+  CheckEq(Runtime runtime)
+    : _value1 = runtime._readInt16(),
+      _value2 = runtime._readInt16();
 
   CheckEq.make(this._value1, this._value2);
 
@@ -251,7 +290,10 @@ class CreateClass implements EvcOp {
   final int _valuesLen;
 
   static int len(CreateClass s) {
-    return Evc.BASE_OPLEN + Evc.I32_LEN + Evc.I16_LEN * 2 + Evc.istrLen(s._name);
+    return Evc.BASE_OPLEN +
+        Evc.I32_LEN +
+        Evc.I16_LEN * 2 +
+        Evc.istrLen(s._name);
   }
 
   @override
@@ -264,11 +306,15 @@ class CreateClass implements EvcOp {
   }
 
   @override
-  String toString() => 'CreateClass (F$_library:"$_name", super L$_super, vLen=$_valuesLen))';
+  String toString() =>
+      'CreateClass (F$_library:"$_name", super L$_super, vLen=$_valuesLen))';
 }
 
 class SetObjectProperty implements EvcOp {
-  SetObjectProperty(Runtime runtime) : _location = runtime._readInt16(), _property = runtime._readString(), _valueOffset = runtime._readInt16();
+  SetObjectProperty(Runtime runtime)
+    : _location = runtime._readInt16(),
+      _property = runtime._readString(),
+      _valueOffset = runtime._readInt16();
 
   SetObjectProperty.make(this._location, this._property, this._valueOffset);
 
@@ -277,21 +323,31 @@ class SetObjectProperty implements EvcOp {
   final int _valueOffset;
 
   static int len(SetObjectProperty s) {
-    return Evc.BASE_OPLEN + Evc.I16_LEN + Evc.istrLen(s._property) + Evc.I16_LEN;
+    return Evc.BASE_OPLEN +
+        Evc.I16_LEN +
+        Evc.istrLen(s._property) +
+        Evc.I16_LEN;
   }
 
   @override
   void run(Runtime runtime) {
     final object = runtime.frame[_location];
-    (object as $Instance).$setProperty(runtime, _property, runtime.frame[_valueOffset] as $Value);
+    (object as $Instance).$setProperty(
+      runtime,
+      _property,
+      runtime.frame[_valueOffset] as $Value,
+    );
   }
 
   @override
-  String toString() => 'SetObjectProperty (L$_location.$_property = L$_valueOffset)';
+  String toString() =>
+      'SetObjectProperty (L$_location.$_property = L$_valueOffset)';
 }
 
 class PushObjectProperty implements EvcOp {
-  PushObjectProperty(Runtime runtime) : _location = runtime._readInt16(), _propertyIdx = runtime._readInt32();
+  PushObjectProperty(Runtime runtime)
+    : _location = runtime._readInt16(),
+      _propertyIdx = runtime._readInt32();
 
   PushObjectProperty.make(this._location, this._propertyIdx);
 
@@ -318,7 +374,8 @@ class PushObjectProperty implements EvcOp {
           if (method == null) {
             object = object.evalSuperclass;
             if (object == null) {
-              runtime.returnValue = (base as $InstanceImpl).getCoreObjectProperty(property);
+              runtime.returnValue = (base as $InstanceImpl)
+                  .getCoreObjectProperty(property);
               return;
             }
             continue;
@@ -346,7 +403,9 @@ class PushObjectProperty implements EvcOp {
 }
 
 class PushObjectPropertyImpl implements EvcOp {
-  PushObjectPropertyImpl(Runtime runtime) : objectOffset = runtime._readInt16(), _propertyIndex = runtime._readInt16();
+  PushObjectPropertyImpl(Runtime runtime)
+    : objectOffset = runtime._readInt16(),
+      _propertyIndex = runtime._readInt16();
 
   final int objectOffset;
   final int _propertyIndex;
@@ -362,7 +421,8 @@ class PushObjectPropertyImpl implements EvcOp {
   }
 
   @override
-  String toString() => 'PushObjectPropertyImpl (L$objectOffset[$_propertyIndex])';
+  String toString() =>
+      'PushObjectPropertyImpl (L$objectOffset[$_propertyIndex])';
 }
 
 class SetObjectPropertyImpl implements EvcOp {
@@ -375,7 +435,11 @@ class SetObjectPropertyImpl implements EvcOp {
   final int _propertyIndex;
   final int _valueOffset;
 
-  SetObjectPropertyImpl.make(this._objectOffset, this._propertyIndex, this._valueOffset);
+  SetObjectPropertyImpl.make(
+    this._objectOffset,
+    this._propertyIndex,
+    this._valueOffset,
+  );
 
   static int length = Evc.BASE_OPLEN + Evc.I16_LEN * 3;
 
@@ -387,7 +451,8 @@ class SetObjectPropertyImpl implements EvcOp {
   }
 
   @override
-  String toString() => 'SetObjectPropertyImpl (L$_objectOffset[$_propertyIndex] = L$_valueOffset)';
+  String toString() =>
+      'SetObjectPropertyImpl (L$_objectOffset[$_propertyIndex] = L$_valueOffset)';
 }
 
 class PushSuper implements EvcOp {
@@ -405,7 +470,9 @@ class PushSuper implements EvcOp {
     if (object is $InstanceImpl) {
       runtime.frame[runtime.frameOffset++] = object.evalSuperclass;
     } else if (object is $Bridge) {
-      runtime.frame[runtime.frameOffset++] = (Runtime.bridgeData[object]!.subclass as $InstanceImpl).evalSuperclass!;
+      runtime.frame[runtime.frameOffset++] =
+          (Runtime.bridgeData[object]!.subclass as $InstanceImpl)
+              .evalSuperclass!;
     } else {
       throw UnimplementedError();
     }
@@ -416,7 +483,10 @@ class PushSuper implements EvcOp {
 }
 
 class IsType implements EvcOp {
-  IsType(Runtime runtime) : _objectOffset = runtime._readInt16(), _type = runtime._readInt32(), _not = runtime._readUint8() > 0;
+  IsType(Runtime runtime)
+    : _objectOffset = runtime._readInt16(),
+      _type = runtime._readInt32(),
+      _not = runtime._readUint8() > 0;
 
   final int _objectOffset;
   final int _type;
@@ -456,7 +526,9 @@ class PushRuntimeType implements EvcOp {
   @override
   void run(Runtime runtime) {
     final value = runtime.frame[_value] as $Value;
-    runtime.frame[runtime.frameOffset++] = $TypeImpl(value.$getRuntimeType(runtime));
+    runtime.frame[runtime.frameOffset++] = $TypeImpl(
+      value.$getRuntimeType(runtime),
+    );
   }
 
   @override
