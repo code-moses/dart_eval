@@ -33,6 +33,33 @@ void main() {
     expect(result, equals(2));
   });
 
+  test('Host DateTime values are wrapped, also nested in maps and lists', () {
+    final runtime = compiler.compileWriteAndLoad({
+      'test': {
+        'main.dart': r'''
+          dynamic main(Map<dynamic, dynamic> m) {
+            return [m['id'], m['date'].hour, m['dates'][0].day, m['date'].isBefore(m['dates'][0])];
+          }
+        ''',
+      },
+    });
+
+    final map = {
+      'id': 'a',
+      'date': DateTime(2024, 6, 1, 9),
+      'dates': [DateTime(2024, 6, 2)],
+    };
+    final wrapped = runtime.wrap(map, recursive: true);
+    expect(wrapped.$reified, equals(map));
+    expect(runtime.wrap(DateTime(2024, 6, 1)), isA<$DateTime>());
+
+    final result = runtime.executeLib('package:test/main.dart', 'main', [
+      wrapped,
+    ]);
+    expect(result, isA<$List>());
+    expect((result as $List).$reified, equals(['a', 9, 2, true]));
+  });
+
   group('Unboxing of external classes in lists', () {
     late Runtime runtime;
     final list = [2, 3, 1, 5].map((v) => WrapTest(v)).toList();

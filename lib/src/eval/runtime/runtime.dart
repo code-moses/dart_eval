@@ -370,6 +370,8 @@ class Runtime {
       return $String(value);
     } else if (value is bool) {
       return $bool(value);
+    } else if (value is DateTime) {
+      return $DateTime.wrap(value);
     } else if (value == null) {
       return $null();
     }
