@@ -1,5 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/token.dart';
+
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
@@ -20,6 +20,7 @@ import 'package:dart_eval/src/eval/bridge/declaration.dart';
 import 'package:dart_eval/src/eval/runtime/runtime.dart';
 
 import '../util.dart';
+import '../helpers/null_shorting.dart';
 import 'expression.dart';
 import 'identifier.dart';
 
@@ -42,7 +43,7 @@ Variable compileMethodInvocation(
   AlwaysReturnType? mReturnType;
 
   if (L != null) {
-    if (e.operator?.type == TokenType.QUESTION_PERIOD) {
+    if (isUnguardedNullAware(ctx, e)) {
       var out = BuiltinValue().push(ctx).boxIfNeeded(ctx);
       if (L.concreteTypes.length == 1 &&
           L.concreteTypes[0] == CoreTypes.nullType.ref(ctx)) {

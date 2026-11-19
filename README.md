@@ -37,6 +37,9 @@
 >   variable construction instead of being re-derived inconsistently at call sites
 > - Invoking a missing method on a `dynamic` receiver throws a catchable `NoSuchMethodError`
 >   (matching Dart) instead of crashing the interpreter with a host error
+> - `!` accepts `dynamic` operands (`dynamic d = true; !d`), testing for `bool` at runtime and
+>   throwing a TypeError otherwise, as Dart does; previously a compile error ("Unary prefix `!`
+>   is currently only supported for bools")
 >
 > **Null safety & nullability fixes**
 > - `as`/`is` respect nullability (`null as String?`, `null is String?`); `as` no longer
@@ -48,6 +51,10 @@
 > - Null-aware access on unboxed nullable receivers, chained null-aware operators
 >   (`s?.trim()?.length`), string interpolation of null values, and the null-aware spread
 >   operator (`...?`) all work correctly
+> - Null-shorting: a `?.` or `?[` makes the rest of its selector chain null, not only its own
+>   link, so `m['x']?.toString().trim()` and `s?.trim().length` are null for a null receiver
+>   (previously `.trim()`/`.length` then ran on null and threw `NoSuchMethodError`). The
+>   receiver is evaluated once; parentheses end the chain, as in Dart
 >
 > **Expression fixes**
 > - Conditional (ternary) expressions: consistent boxing across branches and correct results
@@ -152,6 +159,10 @@
 > - Local functions accept `null` for nullable parameters (`int count(int? x) => ...; count(null)`),
 >   positional and named; an argument of static type `Null` previously failed the runtime
 >   argument type check with "Cannot invoke function with the given arguments"
+> - Calls to local functions are typed by the declared return type (`bool isSet(v) => ...;
+>   !isSet(x)`, `label(3).length`, `Future<bool>` for async ones) instead of `dynamic`, so a
+>   `bool` result can be negated and members resolve statically; unannotated, `void` and
+>   generic local functions stay `dynamic`
 >
 > **Documented patterns**
 > - [test/plugin_globals_test.dart](test/plugin_globals_test.dart) demonstrates providing
@@ -159,7 +170,7 @@
 >   bridge class with `[]`/`[]=` plus `addSource` top-level getters — so scripts are compiled
 >   and cached once as EVC bytecode while host values change freely between executions.
 >
-> All fixes are covered by regression tests; the full upstream test suite passes (593 tests,
+> All fixes are covered by regression tests; the full test suite passes (599 tests,
 > none skipped). [test/dart_semantics_test.dart](test/dart_semantics_test.dart) additionally
 > asserts, feature by feature, that evaluated code matches what the equivalent native Dart
 > program produces.
@@ -684,7 +695,7 @@ classes, collections, patterns, exceptions, and async).
 | Prefixed imports | ✅ | [prefixed_import_test.dart](test/prefixed_import_test.dart) |
 | Deferred imports | ❌ | N/A |
 | Functions | ✅ | [function_test.dart](test/function_test.dart) |
-| Local functions | ✅ (this fork: self-recursion) | [local_fn_test.dart](test/local_fn_test.dart) |
+| Local functions | ✅ (this fork: self-recursion, declared return types) | [local_fn_test.dart](test/local_fn_test.dart), [dart_semantics_test.dart](test/dart_semantics_test.dart) |
 | Anonymous functions | ✅ | [function_test.dart](test/function_test.dart) |
 | Arrow functions | ✅ | [function_test.dart](test/function_test.dart) |
 | Sync generators | ❌ | N/A |

@@ -25,6 +25,7 @@ import 'package:dart_eval/src/eval/compiler/expression/prefix.dart';
 import 'package:dart_eval/src/eval/compiler/expression/property_access.dart';
 import 'package:dart_eval/src/eval/compiler/expression/rethrow.dart';
 import 'package:dart_eval/src/eval/compiler/expression/throw.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/null_shorting.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
 import 'package:dart_eval/src/eval/compiler/variable.dart';
@@ -34,6 +35,12 @@ Variable compileExpression(
   CompilerContext ctx, [
   TypeRef? bound,
 ]) {
+  if (ctx.nullShortedReceivers[e] case final receiver?) {
+    return receiver;
+  }
+  if (nullShortingLink(ctx, e) case final link?) {
+    return compileNullShorted(ctx, e, link, bound);
+  }
   if (e is Literal) {
     return parseLiteral(e, ctx, bound);
   } else if (e is AssignmentExpression) {

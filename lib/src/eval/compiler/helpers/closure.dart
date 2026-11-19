@@ -128,12 +128,35 @@ InvokeResult invokeClosure(
     pushCall(ctx, sd.offset);
     ctx.pushOp(PushReturnValue.make(), PushReturnValue.LEN);
     final res = Variable.alloc(ctx, CoreTypes.dynamic.ref(ctx), boxed: true);
-    return InvokeResult(null, res, positionalArgs, namedArgs: namedArgs);
+    return InvokeResult(
+      null,
+      _typedByDeclaration(ctx, sd.returnType, res),
+      positionalArgs,
+      namedArgs: namedArgs,
+    );
   } else {
     // Fallback to dynamic dispatch
     final dd = closureRef?.getValue(ctx) ?? closureVar!;
 
     final res = dd.invoke(ctx, 'call', []);
-    return InvokeResult(null, res.result, positionalArgs, namedArgs: namedArgs);
+    return InvokeResult(
+      null,
+      _typedByDeclaration(ctx, dd.methodReturnType, res.result),
+      positionalArgs,
+      namedArgs: namedArgs,
+    );
   }
+}
+
+/// A closure returns a boxed value of whatever type; where the closure's
+/// declaration states one (a local function), the result carries it.
+Variable _typedByDeclaration(
+  CompilerContext ctx,
+  ReturnType? declared,
+  Variable result,
+) {
+  if (declared is! AlwaysReturnType) return result;
+  final type = declared.type;
+  if (type == null || type == CoreTypes.dynamic.ref(ctx)) return result;
+  return result.copyWith(type: type.copyWith(boxed: true));
 }

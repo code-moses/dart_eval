@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/null_shorting.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
 import 'package:dart_eval/src/eval/compiler/expression/expression.dart';
@@ -27,7 +28,7 @@ Variable compileIndexExpression(
   CompilerContext ctx, {
   Variable? cascadeTarget,
 }) {
-  if (e.isNullAware) {
+  if (isUnguardedNullAware(ctx, e)) {
     return _compileNullAwareIndex(e, ctx, cascadeTarget: cascadeTarget);
   }
   return compileIndexExpressionAsReference(

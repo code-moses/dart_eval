@@ -3,6 +3,7 @@ import 'package:analyzer/dart/ast/token.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
+import 'package:dart_eval/src/eval/compiler/expression/as.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/invoke.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
 import 'package:dart_eval/src/eval/compiler/type.dart';
@@ -50,10 +51,20 @@ Variable compilePrefixExpression(
       e,
     );
   } else if (method == '!' && V.type != CoreTypes.bool.ref(ctx)) {
-    throw CompileError(
-      'Unary prefix "!" is currently only supported for bools (type: ${V.type})',
-      e,
-    );
+    if (V.type != CoreTypes.dynamic.ref(ctx)) {
+      throw CompileError(
+        'Unary prefix "!" is only supported for bool and dynamic (type: ${V.type})',
+        e,
+      );
+    }
+    // As in Dart, a dynamic operand must be a bool at runtime
+    final boxed = V.boxIfNeeded(ctx);
+    final boolType = CoreTypes.bool.ref(ctx);
+    typeTestAndAssert(ctx, boxed, boolType);
+    return boxed
+        .copyWith(type: boolType.copyWith(boxed: true))
+        .invoke(ctx, method, [])
+        .result;
   }
 
   if (method == "!") {

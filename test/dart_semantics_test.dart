@@ -215,6 +215,93 @@ void main() {
         $String('2,true'),
       );
     });
+
+    test('Null-shorting: a null receiver skips the rest of the chain', () {
+      expect(
+        run('''
+          class Node {
+            Node? next;
+            int value;
+            Node(this.value);
+          }
+          String main() {
+            final m = <String, dynamic>{'k': ' v '};
+            String? s;
+            List<int>? l;
+            final a = Node(1);
+            return [
+              m['x']?.toString().trim(),
+              m['k']?.toString().trim(),
+              s?.trim().length,
+              'ab'.substring(0)?.toUpperCase().length,
+              l?.first.toString(),
+              a.next?.value.toString(),
+              a.next?.next?.value.toString(),
+            ].join(',');
+          }
+        '''),
+        $String('null,v,null,2,null,null,null'),
+      );
+    });
+
+    test(
+      'Null-shorting evaluates the receiver once, and only the guarded part',
+      () {
+        expect(
+          run('''
+          var calls = 0;
+          String? source(String? v) { calls++; return v; }
+          String main() {
+            final a = source(' x ')?.trim().toUpperCase();
+            final b = source(null)?.trim().toUpperCase();
+            final c = (source(null)?.trim())?.length;
+            return [a, b, c, calls].join(',');
+          }
+        '''),
+          $String('X,null,null,3'),
+        );
+      },
+    );
+
+    test('Null-shorting through several null-aware links', () {
+      expect(
+        run('''
+          class Box {
+            Box? inner;
+            String? label;
+            Box({this.inner, this.label});
+          }
+          String main() {
+            final full = Box(inner: Box(label: ' deep '));
+            final noLabel = Box(inner: Box());
+            final empty = Box();
+            String? f(Box b) => b.inner?.label?.trim().toUpperCase();
+            return [f(full), f(noLabel), f(empty)].join(',');
+          }
+        '''),
+        $String('DEEP,null,null'),
+      );
+    });
+
+    test('! on a dynamic operand tests for bool at runtime', () {
+      expect(
+        run('''
+          String main() {
+            dynamic yes = true;
+            dynamic no = false;
+            dynamic number = 1;
+            var threw = false;
+            try {
+              !number;
+            } catch (e) {
+              threw = true;
+            }
+            return [!yes, !no, !!yes, threw].join(',');
+          }
+        '''),
+        $String('false,true,true,true'),
+      );
+    });
   });
 
   group('Control flow semantics', () {
@@ -322,6 +409,39 @@ void main() {
   });
 
   group('Function and closure semantics', () {
+    test('Local functions keep their declared return type', () {
+      expect(
+        run('''
+          String main() {
+            bool isSet(dynamic v) => v != null && v.toString().isNotEmpty;
+            String label(int n) { return 'n' * n; }
+            int? maybe(bool b) => b ? 1 : null;
+            double half(int n) => n / 2;
+            return [
+              !isSet(null),
+              !isSet('x') || isSet(''),
+              label(3).length,
+              maybe(false) ?? 7,
+              half(3) + 1,
+            ].join(',');
+          }
+        '''),
+        $String('true,false,3,7,2.5'),
+      );
+    });
+
+    test('Async local functions keep their declared return type', () async {
+      expect(
+        await run('''
+          Future<String> main() async {
+            Future<bool> ready() async => false;
+            return (!(await ready())).toString();
+          }
+        '''),
+        $String('true'),
+      );
+    });
+
     test('Currying: closures over closures', () {
       expect(
         run('''

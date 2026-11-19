@@ -92,6 +92,7 @@ StatementInfo compileStatement(
       );
       final fnVar = variable.copyWith(
         scopeFrameOffset: reserved.scopeFrameOffset,
+        methodReturnType: _localFunctionReturnType(ctx, decl),
       );
       fnVar.name = name;
       ctx.setLocal(name, fnVar);
@@ -133,5 +134,28 @@ class StatementInfo {
       willAlwaysReturn: willAlwaysReturn ?? this.willAlwaysReturn,
       willAlwaysThrow: willAlwaysThrow ?? this.willAlwaysThrow,
     );
+  }
+}
+
+/// The declared return type of a local function, so a call is typed by it
+/// (`bool isSet(v) => ...; !isSet(x)`). Null keeps `dynamic`: no annotation,
+/// `void`, or a type built from the function's own type parameters. The body
+/// still returns a boxed value, as every closure does.
+ReturnType? _localFunctionReturnType(
+  CompilerContext ctx,
+  FunctionDeclaration decl,
+) {
+  final annotation = decl.returnType;
+  if (annotation == null || decl.functionExpression.typeParameters != null) {
+    return null;
+  }
+  if (annotation is NamedType && annotation.name.lexeme == 'void') {
+    return null;
+  }
+  try {
+    final type = TypeRef.fromAnnotation(ctx, ctx.library, annotation);
+    return AlwaysReturnType(type, type.nullable);
+  } on CompileError {
+    return null;
   }
 }

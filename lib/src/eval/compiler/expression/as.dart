@@ -227,7 +227,12 @@ Variable _compileSoftCast(
   return out.copyWith(type: slot.copyWith(boxed: true), concreteTypes: []);
 }
 
-void _typeTestAndAssert(CompilerContext ctx, Variable V, TypeRef slot) {
+void _typeTestAndAssert(CompilerContext ctx, Variable V, TypeRef slot) =>
+    typeTestAndAssert(ctx, V, slot);
+
+/// Asserts at runtime that the boxed [V] is a [slot], throwing a TypeError
+/// otherwise.
+void typeTestAndAssert(CompilerContext ctx, Variable V, TypeRef slot) {
   ctx.pushOp(
     IsType.make(V.scopeFrameOffset, ctx.typeRefIndexMap[slot]!, false),
     IsType.length,

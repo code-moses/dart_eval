@@ -1,8 +1,9 @@
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/token.dart';
+
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/src/eval/compiler/builtins.dart';
 import 'package:dart_eval/src/eval/compiler/helpers/equality.dart';
+import 'package:dart_eval/src/eval/compiler/helpers/null_shorting.dart';
 import 'package:dart_eval/src/eval/compiler/macros/branch.dart';
 import 'package:dart_eval/src/eval/compiler/reference.dart';
 import 'package:dart_eval/src/eval/compiler/context.dart';
@@ -20,7 +21,7 @@ Variable compilePropertyAccess(
 }) {
   final L = cascadeTarget ?? compileExpression(pa.realTarget, ctx);
 
-  if (pa.operator.type == TokenType.QUESTION_PERIOD) {
+  if (isUnguardedNullAware(ctx, pa)) {
     var out = BuiltinValue().push(ctx).boxIfNeeded(ctx);
     if (L.concreteTypes.length == 1 &&
         L.concreteTypes[0] == CoreTypes.nullType.ref(ctx)) {

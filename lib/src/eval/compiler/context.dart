@@ -275,6 +275,13 @@ class CompilerContext with ScopeContext {
   /// than a live reference (closures in loops reading loop variables). See
   /// `findCopyCaptureClosures`.
   Set<int> copyCaptureClosures = {};
+
+  /// Null-aware links (`?.`, `?[`) whose receiver is already known to be
+  /// non-null, so they compile as plain accesses. See `compileNullShorted`.
+  final nullShortedLinks = <Expression>{};
+
+  /// The evaluated receivers of [nullShortedLinks], by receiver expression.
+  final nullShortedReceivers = <Expression, Variable>{};
   int nearestAsyncFrame = -1;
   int globalIndex = 0;
   String? version;
